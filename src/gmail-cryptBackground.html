@@ -1,0 +1,55 @@
+<html>
+<script src='gmail-cryptDb.js'></script>
+
+<script>
+
+/* This is the background page for gmail-crypt that communicates between gmail and the extension. 
+ * 
+ * Copyright 2011 Sean Colyer, <sean @ colyer . name>
+ * This program is licensed under the GNU General Public License Version 2. 
+ * See included "LICENSE" file for details.
+ */
+
+
+//TODO: Abstract queries away...
+var currResults = '';
+var responseFunction;
+
+function queryValue(rows){
+    currResults = rows;
+    responseFunction({results: rows});
+}
+
+function queryError(){
+    //will there be queries that aren't from a listener call?
+    responseFunction({});
+    debugger;
+}
+
+chrome.extension.onRequest.addListener(function(request,sender,sendResponse){
+    responseFunction = sendResponse;
+    gCryptDb.setupDb();
+    if(request.method == "getPublicKeys"){
+        gCryptDb.queryPublicKeys(queryValue, queryError);
+    }
+    if(request.method == "getPublicKey"){
+        gCryptDb.query('SELECT * FROM publicKey WHERE email="'+request.email+'"',[], queryValue, queryError);
+    }
+    //Should select a single private key by key_id
+    if(request.method == "getPrivateKey"){
+        gCryptDb.query('SELECT * FROM privateKey',[], queryValue, queryError);
+    }
+    if(request.method == "getPrivateKeys"){
+        gCryptDb.queryPrivateKeys(queryValue, queryError);
+    }
+    else{
+    }
+});
+
+function onLoad(){
+}
+
+document.onload = onLoad();
+
+</script>
+</html>

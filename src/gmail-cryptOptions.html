@@ -1,0 +1,251 @@
+<!-- 
+/* This is the options page for gmail-crypt. 
+ * 
+ * Copyright 2011 Sean Colyer, <sean @ colyer . name>
+ * This program is licensed under the GNU General Public License Version 2. 
+ * See included "LICENSE" file for details.
+ */
+-->
+<html>
+<head>
+<link rel="stylesheet" type="text/css" href="gmailCryptOptions.css"/>
+</head>
+
+<body>
+<div id="main">
+    <div id="title">
+        <h1>gmail-crypt options</h1>
+        <div id="navbar">
+        <a href="#privateKeySpan" class="linkLocal">my keys</a> |
+        <a href="#publicKeySpan" class="linkLocal">friends' keys</a> |
+        <a href="#externalSpan" class="linkLocal">backup</a> |
+        <a href="#helpSpan" class="linkLocal">help</a>
+        </div>
+    </div>
+    
+    <div id="mainColumn">
+        <span id="privateKeySpan">
+            <h2>my private keys:</h2>
+            <table id="privateKeyTable">
+                <tr class="tableHeader">
+                <td>
+                </td>
+                <td>name
+                </td>
+                <td>email
+                </td>
+                </tr>
+            </table>
+
+            <a href="#"><h2 id="insertPrivateKeyTitle">insert private key:</h2></a>
+            <form action="javascript:insertPrivateKey();" id="insertPrivateKeyForm">
+            <textarea id="newPrivateKey" cols=65 rows=10>
+            </textarea>
+            <input type="submit" value="submit"/>
+            </form>
+        </span>
+        <span id="publicKeySpan">
+            <h2>my friends' public keys:</h2>
+            <table id="publicKeyTable">
+                <tr class="tableHeader">
+                <td>
+                </td>
+                <td>name
+                </td>
+                <td>email
+                </td>
+                <td>key id
+                </td>
+                </tr>
+            </table>
+
+            <a href="#"><h2 id="insertPublicKeyTitle">insert public key:</h2></a>
+            <form action="javascript:insertPublicKey();" id="insertPublicKeyForm">
+            <textarea id="newPublicKey" cols=65 rows=10>
+            </textarea>
+            <input type="submit" value="submit"/>
+            </form>
+        </span>
+        <span id="externalSpan">
+            <h2>External Connections</h2>
+            <p>
+                We hope to soon offer the option of easily exporting key information to other services.
+            </p>
+        </span>
+        <span id="helpSpan">
+            <h2>Help!</h2>
+            <p>
+                For the most up-to-date information, please check our <a href="https://github.com/seancolyer/gmail-crypt">project home page</a>.<br/>
+            </p>
+            <h3>How do I use this extension?</h3>
+            <p>
+            <ol>
+                <li>Create a keypair using GPG (or other OpenPGP compatible utility)</li>
+                <li>Export your private (secret) key in an "armored" format (it will display in standard characters)</li>
+                <li>In "my keys" use the "insert private key" text area to paste your secret-key</li>
+                <li>In "friends' keys" use the "insert public key" text area to paste public keys from your friends</li>
+                <li>In gmail, when sending an email look for the "encrypt me" option on the upper right-hand side of the draft</li>
+                <li>In gmail, when receiving an encrypted email look for the "decrypt me" option on the upper right-hand side of the draft</li>
+            </ol>
+            </p>
+            <h3>Is it safe?</h3>
+            <p>
+            This project aims to bring OpenPGP security to Gmail. However, there are some special considerations.
+                <ul>
+                <li>This release still allows drafts to be uploaded to Gmail servers. Unencrypted drafts could be stored on Gmail servers.</li>
+                <li>Storing private keys in browser. The extension will run under it's own domain but it might be possible for malicious entities to access it.</li>
+                <li>Limited randomness. JavaScript doesn't provide great random functions, this implementation uses mouse movement for randomness.</li>
+                </ul>
+            </p>
+            <h3>Troubleshooting</h3>
+            <p>
+                This extension supports a limited subset of the possible OpenPGP implementations. RSA/AES/SHA1/CAST128 are supported.
+            </p>
+            <h3>Community/Licensing</h3>
+            <p>
+                Yes, your contributions would be welcome! Please see the attached LICENSE file for full License information. The jsOpenPGP library that powers this extension is derived from the OpenPGP work from <a href ="http://www.hanewin.net/encrypt/">Herbert Hanewinkel</a>, however the RSA library has been switched out for a modified version of the BigInteger/RSA libraries from <a href="http://www-cs-students.stanford.edu/~tjw/jsbn/">Tom Wu</a>. Some of the conversion methods were derived from work by <a href="http://mywebserve.com">Bill Adams</a> for the Qooxdoo Crypto library.<br/>                
+            </p>
+            <h3>Related Works</h3>
+            <p>
+                <ul>
+                    <li><a href = "http://gpgtools.github.com/Mobile">GPGTools</a> is working on using a JavaScript implementation of OpenPGP for a mobile app.</li>
+                    <li><a href="http://blog.thinkst.com/2011/09/chrome-extension-for-gpg-in-gmail.html">Thinkst has released an extension</a> that performs a very similar feature. However, rather than using a Javascript implementation, it uses a user-installed GPG binary on the local filesystem.</li>
+                    <li><a href="http://getfiregpg.org/s/home">FireGPG</a> used to be very similar. It runs only in FireFox. It has stopped supporting Gmail</li>
+                </ul>
+            </p>
+        </span>
+    </div>
+    <div id="footer">
+        gmail-crypt<br/>
+        <a href="https://github.com/seancolyer/gmail-crypt" class="linkLocal">project page</a> |
+        <a href="#" class="linkLocal">license</a>
+    </div>
+</div>
+</body>
+
+<script src='gmail-cryptDb.js'></script>
+<script src='gmail-cryptUtil.js'></script>
+<script src='lib/jquery-1.6.2.min.js'></script>
+<script src='lib/OpenPGPDecode.js'></script>
+<script src='lib/base64.js'></script>
+<script src='lib/sha1.js'></script>
+<script src='lib/jsbn.js'></script>
+<script src='lib/jsbn2.js'></script>
+<script src='lib/rsa.js'></script>
+<script src='lib/rsa2.js'></script>
+<script>
+   var privateKeyFormToggle = true;
+   var publicKeyFormToggle = true;
+   
+   function insertPrivateKey(){
+       debugger;
+       var privKey = $('#newPrivateKey').val();
+       var results = OpenPGPDecode.decode(privKey);
+       for(var n=0;n<results.length;n++){
+            if(results[n].tag == 13){
+                var user = results[n].user;
+            }
+        }
+       for(var n=0;n<results.length;n++){
+            if(results[n].tag == 5 || results[n].tag == 7){
+                var rsa = results[n].rsa;
+                gCryptDb.insertPrivateKey(user, privKey,'', rsa.d.toString(16), rsa.p.toString(16),rsa.q.toString(16),'', function(){gCryptDb.queryPrivateKeys(parsePrivateKeys,queryError);}, queryError);
+
+            }
+        }
+
+       return true;
+   }
+    
+   function insertPublicKeySuccess(){
+       gCryptDb.queryPublicKeys(parsePublicKeys,queryError);
+   }
+    
+   function insertPublicKey(){
+       debugger;
+       var pubKey = $('#newPublicKey').val();
+       var results = OpenPGPDecode.decode(pubKey);
+       //This assumes only one key/subkey. We can add multiple similar to private key, but how do we know which key to encrypt to?
+       for(var n=0; n<results.length; n++){
+        if(results[n].tag == 6 || results[n].tag == 14){
+            var vers = results[n].vers;
+            var fp = results[n].fp;
+            var keyid = results[n].keyid;
+            var pkey = results[n].pkey;
+        }
+        if(results[n].tag == 13){
+            var user = results[n].user;
+        }        
+       }
+       gCryptDb.insertPublicKey(vers, fp, keyid, user, pkey, pubKey, insertPublicKeySuccess, queryError);
+       return true;
+   }
+   
+   function queryError(error){
+       debugger;
+       alert(error);
+   }
+   
+   function queryPublicKeys(){
+      gCryptDb.queryPublicKeys(parsePublicKeys,queryError)        
+   }
+
+    function queryPrivateKeys(){
+          gCryptDb.queryPrivateKeys(parsePrivateKeys,queryError);
+    }
+
+   function parsePublicKeys(keys){
+      $('#publicKeyTable>tbody>tr[class!=tableHeader]').remove();
+      for(var k=0;k<keys.length;k++){
+          $('#publicKeyTable>tbody').append('<tr><td class="removeLink" id="'+keys[k].id+'"><a href="#">remove</a></td><td>'+keys[k].name+'</td><td>'+keys[k].email+'</td><td>'+keys[k].key_id+'</td></tr>');
+      }
+      $('#publicKeyTable .removeLink').click(function(e){
+        //Is there a better way to get the calling id of the dom element that calls this than e.currentTarget.id?
+            gCryptDb.removePublicKey(e.currentTarget.id, queryPublicKeys, queryError);
+      });
+   }
+   
+   function parsePrivateKeys(keys){
+      $('#privateKeyTable>tbody>tr[class!=tableHeader]').remove();
+      for(var k=0;k<keys.length;k++){
+          $('#privateKeyTable>tbody').append('<tr><td class="removeLink" id="'+keys[k].id+'"><a href="#">remove</a></td><td>'+keys[k].name+'</td><td>'+keys[k].email+'</td></tr>');
+      }
+      $('#privateKeyTable .removeLink').click(function(e){
+        //Is there a better way to get the calling id of the dom element that calls this?
+        gCryptDb.removePrivateKey(e.currentTarget.id,queryPrivateKeys, queryError);      
+      });
+   }
+
+   function linkLocalFunction(event){
+   $('#publicKeySpan').hide();
+   $('#privateKeySpan').hide();
+   $('#externalSpan').hide();
+   $('#helpSpan').hide();
+   $(event.currentTarget.hash).show();
+   }
+   
+   function onLoad(){
+      gCryptDb.setupDb();
+      queryPublicKeys();
+      queryPrivateKeys();
+      $('#privateKeySpan').hide();
+      $('#publicKeySpan').hide();
+      $('#externalSpan').hide();
+      $('.linkLocal').click(linkLocalFunction);
+      $('#insertPrivateKeyForm').hide();
+      $('#insertPrivateKeyTitle').click(function() {
+        $('#insertPrivateKeyForm').toggle(privateKeyFormToggle);
+        privateKeyFormToggle = !privateKeyFormToggle;
+        });
+      $('#insertPublicKeyForm').hide();
+      $('#insertPublicKeyTitle').click(function() {
+        $('#insertPublicKeyForm').toggle(publicKeyFormToggle);
+        publicKeyFormToggle = !publicKeyFormToggle;
+        });
+      }
+
+   $(document).ready(onLoad());
+</script>
+
+
+</html>

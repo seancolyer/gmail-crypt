@@ -1,0 +1,23 @@
+{
+"name":"gmail-crypt extension",
+"version":"1",
+"description":"Extension implementing GPG into Webmail (Gmail) using JS and the jsOpenPGP library",
+"icons": {
+"128":"gmail-crypt128.png"
+},
+"permissions":[
+"https://mail.google.com/*",
+"http://mail.google.com/*",
+"https://google.com/*",
+"http://google.com/*"
+],
+"background_page": "gmail-cryptBackground.html",
+"content_scripts": [{
+"matches":["https://mail.google.com/*","http://mail.google.com/*"],
+"js": ["lib/jquery-1.6.2.min.js","lib/aes-enc.js","lib/base64.js","lib/cast5.js","lib/mouse.js","lib/OpenPGPEncode.js","lib/OpenPGPDecode.js","lib/sha1.js","lib/jsbn.js","lib/jsbn2.js","lib/rsa.js","lib/rsa2.js","gmail-cryptUtil.js","gmail-crypt.js"],
+"run_at":"document_idle",
+"all_frames":true
+}],
+"homepage_url":"https://github.com/seancolyer/gmail-crypt",
+"options_page":"gmail-cryptOptions.html"
+}
