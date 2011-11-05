@@ -1,0 +1,9 @@
+gmail-Crypt is a browser (Chrome) extension that brings OpenPGP support to gmail. It aims to be a simple solution to mail encryption.
+
+The project is building out the indpendent JavaScript OpenPGP library dubbed jsOpenPGP.
+
+More information can be found in the Options page of the extension or at prometheusx.net
+
+Additional help welcome. Please see the TODO file for current things to address.
+
+See LICENSE file for licensing info.
