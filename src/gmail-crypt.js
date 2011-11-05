@@ -7,12 +7,18 @@
 
 var menubarLoaded = false;
 var viewTitleBarLoaded = false;
+//gmailVersion was added with the new role out ~11/3/11 of the new gmail style. Value 1 is for old style, 2 is for new.
+var gmailVersion = 0;
 
 function encrypt(){
 	var form = $('#canvas_frame').contents().find('form');
     var to = gCryptUtil.parseUser(form.find('textarea[name="to"]').val()).userEmail;
 	var contents = form.find('iframe[class="Am Al editable"]')[0].contentDocument.body;
    chrome.extension.sendRequest({method: "getPublicKey",email:to}, function(response){
+        if(response.results.length == 0){
+                gCryptUtil.notify('No keys found for this user.');
+                return;
+        }
         var publicKeyId = response.results[0].key_id;
         var publicKey = response.results[0].key;
         contents.innerText = OpenPGPEncode.encrypt(publicKeyId,0,publicKey,contents.innerText);
@@ -20,9 +26,22 @@ function encrypt(){
 }
 
 function decrypt(event){
-    var element = $(event.currentTarget).closest('[class="G3 G2"]').find('[class="ii gt"] div');
+    var element;
+    var msg;
     //we need to use regex here because gmail will automatically form \n into <br> or <wbr>, strip these out
-    var msg = element.html().replace(/(<br>)|(<wbr>)/g,'\n');
+    //I'm not entirely happy with these replace statements, perhaps there can be a different approach
+    if(gmailVersion == 1){
+        element = $(event.currentTarget).closest('[class="G3 G2"]').find('[class="ii gt"] div');
+        msg = element.html().replace(/(<br>)|(<wbr>)/g,'\n');
+    }
+    if(gmailVersion == 2){
+        element = $(event.currentTarget).closest('div[class="gs"]').find('[class*="ii gt"] div');
+        msg = element.html().replace(/\n/g,"");
+        msg = msg.replace(/(<br><\/div>)/g,'\n'); //we need to ensure that extra spaces aren't added where gmail puts a <div><br></div>
+        msg = msg.replace(/(<\/div>)/g,'\n');
+        msg = msg.replace(/(<br>)/g,'\n');
+    }
+    
     //originally stripped just <br> and <wbr> but gmail can add other things such as <div class="im">
     msg = msg.replace(/<(.*?)>/g,'');
     chrome.extension.sendRequest({method: "getPrivateKeys"}, function(response){
@@ -43,7 +62,7 @@ function decrypt(event){
                     return;
                 }
                 else{
-                    //Notify user no pgp text found
+                    gCryptUtil.notify('No text found');
                 }
             }
             catch(e){
@@ -58,27 +77,37 @@ function decrypt(event){
     }
 
 function composeIntercept(ev) {
+    if( $('#canvas_frame').contents().find('html[class="cQ"]').length > 0)
+        gmailVersion = 1;
+    if( $('#canvas_frame').contents().find('html[class="xiu1Fc"]').length > 0){
+        gmailVersion = 2;
+        }
+
 	var form = $('#canvas_frame').contents().find('form');
-	var frame = form.find('iframe[class="Am Al editable"]');
-	if (frame.length > 0){
-    	var contents = frame[0].contentDocument.body;
-	}
     var menubar = form.find('td[class="fA"]');
 	if(menubar.length>0){
         if(menubar.find('#gCryptEncrypt').length == 0){
-            menubar.append('<span id="gCryptEncrypt"><a href="#">encrypt me</a></span>');
+            menubar.append('<span id="gCryptEncrypt"><a href="#"><img src="'+chrome.extension.getURL("images/encryptIcon.png")+'"/>encrypt me</a></span>');
             menubar[0].lastChild.addEventListener("click",encrypt,false);
         }
 	}
 	
 	//Why is this not firing for all cases? It seems that if a page has been previously loaded it uses some sort of caching and won't fire the event
-	var viewTitleBar = $('#canvas_frame').contents().find('div[class="G0"]');
-    viewTitleBar.each(function(v){
-        if( $(this).find('#gCryptDecrypt').length == 0){
-	        $(this).prepend('<span id="gCryptDecrypt"><a href="#">decrypt me</a></span>');
-            this.firstChild.addEventListener("click",decrypt,false);
-        }
-    });
+	var viewTitleBar;
+	if(gmailVersion == 1)
+	    viewTitleBar = $('#canvas_frame').contents().find('div[class="G0"]');
+	if(gmailVersion == 2){
+	    viewTitleBar = $('#canvas_frame').contents().find('td[class="gH k0OQve"]');
+	}
+    if(viewTitleBar.length > 0){
+        viewTitleBar.each(function(v){
+            if( $(this).find('#gCryptDecrypt').length == 0){
+	            $(this).prepend('<span id="gCryptDecrypt"><a href="#"><img src="'+chrome.extension.getURL("images/decryptIcon.png")+'"/>decrypt me</a></span>');
+                $(this).find('#gCryptDecrypt').click(decrypt);
+                //this.firstChild.addEventListener("click",decrypt,false);
+            }
+        });
+    }
 }
 
 function onLoad() {

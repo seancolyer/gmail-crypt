@@ -18,6 +18,7 @@
 "run_at":"document_idle",
 "all_frames":true
 }],
-"homepage_url":"https://github.com/seancolyer/gmail-crypt",
+"homepage_url":"http://github.com/seancolyer/gmail-crypt",
+"update_url":"http://raw.github.com/seancolyer/gmail-crypt/master/build/updates.xml",
 "options_page":"gmail-cryptOptions.html"
 }

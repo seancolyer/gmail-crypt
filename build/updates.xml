@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<gupdate xmlns='http://www.google.com/update2/response' protocol='2.0'>
+  <app appid='fhmglclekiacokpkkceiechbfemejjhi'>
+    <updatecheck codebase='http://github.com/seancolyer/gmail-crypt/blob/master/build/repo.crx?raw=true' version='1' />
+  </app>
+</gupdate>

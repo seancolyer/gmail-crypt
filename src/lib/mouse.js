@@ -27,6 +27,9 @@ var mouseArray = new Array(256);
 var s=new Array(256);
 var x, y;
 
+function randomByte() { return Math.round(Math.random()*255)&255; };
+function timeByte() { return ((new Date().getTime())>>>2)&255; };
+
 function rc4Init()
 {
  var i, t;

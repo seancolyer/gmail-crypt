@@ -99,7 +99,11 @@
             </p>
             <h3>Troubleshooting</h3>
             <p>
-                This extension supports a limited subset of the possible OpenPGP implementations. RSA/AES/SHA1/CAST128 are supported.
+                <ul>
+                <li>This extension supports a limited subset of the possible OpenPGP implementations. RSA/AES/SHA1/CAST128 are supported.</li>
+                <li>This extension is aimed at the newest displays of gmail and is generally untested with Labs addons, try the simplest most up to date view you can get</li>
+                <li>If a message is unable to be decoded, it could be from weird formatting from gmail, if you have the ability, please send the html code of the text you are attempting to decrypt (F12->Elements->Magnifying Glass)</li>
+                </ul>
             </p>
             <h3>Community/Licensing</h3>
             <p>
@@ -138,7 +142,6 @@
    var publicKeyFormToggle = true;
    
    function insertPrivateKey(){
-       debugger;
        var privKey = $('#newPrivateKey').val();
        var results = OpenPGPDecode.decode(privKey);
        for(var n=0;n<results.length;n++){
@@ -162,7 +165,6 @@
    }
     
    function insertPublicKey(){
-       debugger;
        var pubKey = $('#newPublicKey').val();
        var results = OpenPGPDecode.decode(pubKey);
        //This assumes only one key/subkey. We can add multiple similar to private key, but how do we know which key to encrypt to?
