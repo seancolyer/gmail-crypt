@@ -36,6 +36,8 @@
  *   if the same buttons are clicked on the screen.
  */
 var OpenPGPEncode = {
+    publicKeyMap : {'RSA' : 1},
+
     rnArray : new Array(256),
     rnNext : 0,
     rnRead : 0,
@@ -260,5 +262,85 @@ var OpenPGPEncode = {
 
      return '-----BEGIN PGP MESSAGE-----\nVersion: jsOpenPGP v1\n\n'
             +s2r(cp)+'\n='+s2r(this.crc24(cp))+'\n-----END PGP MESSAGE-----\n';
+    },
+    
+    //new style gpg header
+    packet : function(tag, len){
+    var header = 0xC0 + tag;
+    header = String.fromCharCode(header);
+    if(len<192){
+        header += String.fromCharCode(len);
+    }
+    else if(len< 8383){
+        var len1 = 191+Math.floor(len/256);
+        var len2 = 256-(192-len%256);
+        header += String.fromCharCode(len1)+String.fromCharCode(len2);
+    }
+    else if(len < 0xFFFFFFFF){
+        header += String.fromCharCode(255) + String.fromCharCode(Math.floor(len/0x1000000%0x100)) + String.fromCharCode(Math.floor(len/0x10000%0x100)) + String.fromCharCode(Math.floor(len/0x100%0x100)) + String.fromCharCode(Math.floor(len%0x100));
+    }
+    // else length unknown, stream
+    else{
+    
+    }
+    return header;
+    },
+    
+    buildTime: function(){
+        var d = new Date();
+        d = d.getTime()/1000
+        return String.fromCharCode(Math.floor(d/0x1000000%0x100)) + String.fromCharCode(Math.floor(d/0x10000%0x100)) + String.fromCharCode(Math.floor(d/0x100%0x100)) + String.fromCharCode(Math.floor(d%0x100));
+    },
+    
+    basicChecksum: function(text){
+        var sum = 0;
+        for(var n = 0; n < text; n++) sum += text.charCodeAt(n);
+        return sum & 65535    
+    },
+    
+    createSecretKeyPacket: function(){
+        debugger;
+        var packet = String.fromCharCode(4);
+        packet += this.buildTime();
+        packet += String.fromCharCode(this.publicKeyMap['RSA']);//public key algo
+        var algorithmStart = packet.length;
+        var rsa = new RSAKey();
+        rsa.generate(2048,"10001");
+        packet += rsa.n.toMPI();
+        var e = new BigInteger();
+        e.fromInt(rsa.e);
+        packet += e.toMPI();
+        packet += String.fromCharCode(0);//1 octet -- s2k, 0 for no s2k
+        //optional: if s2k == 255,254 then 1 octet symmetric encryption algo
+        //optional: if s2k == 255,254 then s2k specifier
+        //optional if s2k, IV of same length as cipher's block
+        packet += rsa.d.toMPI();
+        packet += rsa.p.toMPI();
+        packet += rsa.q.toMPI();
+        packet += rsa.coeff.toMPI(); //is this actually u?
+        packet += this.basicChecksum(packet.substr(algorithmStart));//DEPRECATED:s2k == 0, 255: 2 octet checksum, sum all octets%65536 
+        packet = this.packet(5,packet.length) + packet;
+        return '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: jsOpenPGP v1\n\n'
+            +s2r(packet)+'\n='+s2r(this.crc24(packet))+'\n-----END PGP MESSAGE-----\n';
+
+    },
+    
+    createUserIdPacket: function(){
+        var tag = 13;
+        
+    },
+    
+    createSignaturePacket: function(){
+        var len = 100;
+        var packet = this.packet(2,len);
+        packet += String.fromCharCode(4);
+        packet += String.fromCharCode(4); //version num
+        packet += String.fromCharCode(0x10);//signature type
+        packet += String.fromCharCode(this.publicKeyMap['RSA']);//public key algo
+        packet += String.fromCharCode(2);//hash algo
+        //2 octet count of hashed packets
+        //hashed packets
+        //2 octet count for non hashed packets
+     
     }
 }
