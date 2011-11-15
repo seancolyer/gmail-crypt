@@ -79,7 +79,7 @@ function decrypt(event){
 function composeIntercept(ev) {
     if( $('#canvas_frame').contents().find('html[class="cQ"]').length > 0)
         gmailVersion = 1;
-    if( $('#canvas_frame').contents().find('html[class="xiu1Fc"]').length > 0){
+    if( $('#canvas_frame').contents().find('html[class="aao"]').length > 0){
         gmailVersion = 2;
         }
 
@@ -97,7 +97,7 @@ function composeIntercept(ev) {
 	if(gmailVersion == 1)
 	    viewTitleBar = $('#canvas_frame').contents().find('div[class="G0"]');
 	if(gmailVersion == 2){
-	    viewTitleBar = $('#canvas_frame').contents().find('td[class="gH k0OQve"]');
+	    viewTitleBar = $('#canvas_frame').contents().find('td[class="gH acX"]');
 	}
     if(viewTitleBar.length > 0){
         viewTitleBar.each(function(v){

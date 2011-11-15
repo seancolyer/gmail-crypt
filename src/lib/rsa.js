@@ -95,6 +95,17 @@ function RSADoPublic(x) {
   return x.modPowInt(this.e, this.n);
 }
 
+function RSASign(text){
+  var m = pkcs1pad2(text,(this.n.bitLength()+7)>>3);
+  if(m == null) return null;
+  var c = m.modPow(this.d,this.n);
+  if(c == null) return null;
+  //c.toMPI(); ??
+  //var h = c.toString(16);
+  //if((h.length & 1) == 0) return h; else return "0" + h;
+  return c;
+}
+
 // Return the PKCS#1 RSA encryption of "text" as an even-length hex string
 function RSAEncrypt(text) {
   var m = pkcs1pad2(text,(this.n.bitLength()+7)>>3);
@@ -117,4 +128,5 @@ RSAKey.prototype.doPublic = RSADoPublic;
 // public
 RSAKey.prototype.setPublic = RSASetPublic;
 RSAKey.prototype.encrypt = RSAEncrypt;
+RSAKey.prototype.sign = RSASign;
 //RSAKey.prototype.encrypt_b64 = RSAEncryptB64;

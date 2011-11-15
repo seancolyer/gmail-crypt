@@ -264,26 +264,35 @@ var OpenPGPEncode = {
             +s2r(cp)+'\n='+s2r(this.crc24(cp))+'\n-----END PGP MESSAGE-----\n';
     },
     
-    //new style gpg header
-    packet : function(tag, len){
-    var header = 0xC0 + tag;
-    header = String.fromCharCode(header);
-    if(len<192){
-        header += String.fromCharCode(len);
-    }
-    else if(len< 8383){
-        var len1 = 191+Math.floor(len/256);
-        var len2 = 256-(192-len%256);
-        header += String.fromCharCode(len1)+String.fromCharCode(len2);
-    }
-    else if(len < 0xFFFFFFFF){
-        header += String.fromCharCode(255) + String.fromCharCode(Math.floor(len/0x1000000%0x100)) + String.fromCharCode(Math.floor(len/0x10000%0x100)) + String.fromCharCode(Math.floor(len/0x100%0x100)) + String.fromCharCode(Math.floor(len%0x100));
-    }
-    // else length unknown, stream
-    else{
+    packetHeaderOld : function(tag,len){
+        tag = 0x80+ (tag<<2);
+        if(len>255) tag +=1;
+            var h = String.fromCharCode(tag);
+        if(len>255) h+=String.fromCharCode(len/256);
+            h += String.fromCharCode(len%256);
+        return h;
+    },
     
-    }
-    return header;
+    //new style OpenPGP header
+    packetHeader : function(tag, len){
+        var header = 0xC0 + tag;
+        header = String.fromCharCode(header);
+        if(len<192){
+            header += String.fromCharCode(len);
+        }
+        else if(len< 8383){
+            var len1 = 192+Math.floor((len-192)/256);
+            var len2 = ((len-192)%256);
+            header += String.fromCharCode(len1)+String.fromCharCode(len2);
+        }
+        else if(len < 0xFFFFFFFF){
+            header += String.fromCharCode(255) + String.fromCharCode(Math.floor(len/0x1000000%0x100)) + String.fromCharCode(Math.floor(len/0x10000%0x100)) + String.fromCharCode(Math.floor(len/0x100%0x100)) + String.fromCharCode(Math.floor(len%0x100));
+        }
+        // else length unknown, stream
+        else{
+        
+        }
+        return header;
     },
     
     buildTime: function(){
@@ -292,24 +301,58 @@ var OpenPGPEncode = {
         return String.fromCharCode(Math.floor(d/0x1000000%0x100)) + String.fromCharCode(Math.floor(d/0x10000%0x100)) + String.fromCharCode(Math.floor(d/0x100%0x100)) + String.fromCharCode(Math.floor(d%0x100));
     },
     
+    armor: function(message, header){
+        return '-----'+header+'-----\nVersion: jsOpenPGP v1\n\n'
+            +s2r(message)+'\n='+s2r(this.crc24(message))+'\n-----END PGP MESSAGE-----\n';
+    },
+    
     basicChecksum: function(text){
         var sum = 0;
-        for(var n = 0; n < text; n++) sum += text.charCodeAt(n);
+        for(var n = 0; n < text.length; n++) sum += text.charCodeAt(n);
         return sum & 65535    
     },
     
-    createSecretKeyPacket: function(){
-        debugger;
+    generateKeyPair: function(name,email){
+        var rsa = new RSAKey();
+        rsa.generate(512,"10001");
+        var privateKeyPacket = this.createSecretKeyPacket(rsa);
+        var hashString = String.fromCharCode(0x99)+privateKeyPacket;
+        var userIdPacket = this.createUserIdPacket(name,email);
+        hashString += String.fromCharCode(0xB4)+userIdPacket;
+        var signaturePacket = this.createSignaturePacket(0x10,hashString, rsa); //gpg produces a 0x13 here RFC says most just do 0x10
+        var privateKeyMessage = this.armor(privateKeyPacket+userIdPacket+signaturePacket, 'BEGIN PGP PRIVATE KEY BLOCK');
+        var publicKeyMessage = this.createPublicKeyPacket(rsa);
+        hashString = String.fromCharCode(0x99)+publicKeyMessage+String.fromCharCode(0xB4)+userIdPacket;
+        var signaturePacket = this.createSignaturePacket(0x10,hashString, rsa); //gpg produces a 0x13 here RFC says most just do 0x10
+        publicKeyMessage = this.armor(publicKeyMessage+userIdPacket+signaturePacket, 'BEGIN PGP PUBLIC KEY BLOCK');
+        return {'private' : privateKeyMessage, 'public' : publicKeyMessage};
+    },
+    
+    createPublicKeyPacket: function(rsa){
+        var tag = 6;
         var packet = String.fromCharCode(4);
         packet += this.buildTime();
         packet += String.fromCharCode(this.publicKeyMap['RSA']);//public key algo
         var algorithmStart = packet.length;
-        var rsa = new RSAKey();
-        rsa.generate(2048,"10001");
         packet += rsa.n.toMPI();
         var e = new BigInteger();
         e.fromInt(rsa.e);
         packet += e.toMPI();
+        packet = this.packetHeader(tag,packet.length) + packet;
+        return packet;
+    },
+    
+    createSecretKeyPacket: function(rsa){
+        var tag = 5;
+        var packet = String.fromCharCode(4);
+        packet += this.buildTime();
+        packet += String.fromCharCode(this.publicKeyMap['RSA']);//public key algo
+        var algorithmStart = packet.length;
+        packet += rsa.n.toMPI();
+        var e = new BigInteger();
+        e.fromInt(rsa.e);
+        packet += e.toMPI();
+        //below shows ske/s2k currently disabled (no pw)
         packet += String.fromCharCode(0);//1 octet -- s2k, 0 for no s2k
         //optional: if s2k == 255,254 then 1 octet symmetric encryption algo
         //optional: if s2k == 255,254 then s2k specifier
@@ -319,28 +362,39 @@ var OpenPGPEncode = {
         packet += rsa.q.toMPI();
         packet += rsa.coeff.toMPI(); //is this actually u?
         packet += this.basicChecksum(packet.substr(algorithmStart));//DEPRECATED:s2k == 0, 255: 2 octet checksum, sum all octets%65536 
-        packet = this.packet(5,packet.length) + packet;
-        return '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: jsOpenPGP v1\n\n'
-            +s2r(packet)+'\n='+s2r(this.crc24(packet))+'\n-----END PGP MESSAGE-----\n';
+        packet = this.packetHeader(tag,packet.length) + packet;
+        return packet;
 
     },
     
-    createUserIdPacket: function(){
+    createUserIdPacket: function(name, email){
         var tag = 13;
-        
+        var packet = name + ' ' + '<' + email + '>';
+        packet = this.packetHeader(tag,packet.length) + packet;
+        return packet;
     },
     
-    createSignaturePacket: function(){
-        var len = 100;
-        var packet = this.packet(2,len);
-        packet += String.fromCharCode(4);
-        packet += String.fromCharCode(4); //version num
-        packet += String.fromCharCode(0x10);//signature type
+    //SC 11/14/11 need to verify that these signatures are accurate.
+    createSignaturePacket: function(signatureType, data, rsa){
+        var tag = 2;
+        var packet = String.fromCharCode(4); //version num
+        packet += String.fromCharCode(signatureType);//signature type
         packet += String.fromCharCode(this.publicKeyMap['RSA']);//public key algo
-        packet += String.fromCharCode(2);//hash algo
-        //2 octet count of hashed packets
-        //hashed packets
-        //2 octet count for non hashed packets
-     
+        packet += String.fromCharCode(2);//hash algo, 2 == SHA1
+        //Below, currently no subpackets for signing.
+        packet += String.fromCharCode(0)+String.fromCharCode(0);//2 octet count of hashed packets
+        //hashed subpackets
+        var endSignedPacket = packet.length;
+        packet += String.fromCharCode(0)+String.fromCharCode(0);//2 octet count for non hashed packets
+        //unhashed subpackets
+        //hash(data+(version# through hashed subpacket data))
+        var hash = str_sha1(data+packet.substr(1,endSignedPacket));
+        //2 octet for left 16 bits of signed hash
+        packet += hash.substr(0,2);
+        packet += rsa.sign(hash).toMPI();
+        
+        packet = this.packetHeader(tag,packet.length) + packet;
+        return packet;
+        
     }
 }
