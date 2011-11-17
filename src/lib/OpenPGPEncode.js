@@ -35,6 +35,13 @@
  * - Only a few bits from mouse mouvement event coordinates are unpredictable,
  *   if the same buttons are clicked on the screen.
  */
+
+function packet(header, body){
+    this.header = header;
+    this.body = body;
+    this.message = header+body;
+}
+ 
 var OpenPGPEncode = {
     publicKeyMap : {'RSA' : 1},
 
@@ -288,13 +295,37 @@ var OpenPGPEncode = {
         else if(len < 0xFFFFFFFF){
             header += String.fromCharCode(255) + String.fromCharCode(Math.floor(len/0x1000000%0x100)) + String.fromCharCode(Math.floor(len/0x10000%0x100)) + String.fromCharCode(Math.floor(len/0x100%0x100)) + String.fromCharCode(Math.floor(len%0x100));
         }
-        // else length unknown, stream
         else{
-        
+        // TODO: else length unknown, stream        
         }
         return header;
     },
     
+    //signature subpacket header. TODO: SC: I think the 5 octet lengths need revised.
+    subpacketHeader : function(tag, len, critical){
+        var header = tag;
+        len = len + 1; //add 1 for type octet
+        if(critical == true){
+            header += 0x80;
+        }
+        header = String.fromCharCode(header);
+        if(len<192){
+            header = String.fromCharCode(len) + header;
+        }
+        else if(len< 8383){
+            var len1 = 192+Math.floor((len-192)/256);
+            var len2 = ((len-192)%256);
+            header = String.fromCharCode(len1)+String.fromCharCode(len2) + header;
+        }
+        else if(len < 0xFFFFFFFF){
+            header = String.fromCharCode(255) + String.fromCharCode(Math.floor(len/0x1000000%0x100)) + String.fromCharCode(Math.floor(len/0x10000%0x100)) + String.fromCharCode(Math.floor(len/0x100%0x100)) + String.fromCharCode(Math.floor(len%0x100)) + header;
+        }
+        else{
+            //TODO: error
+        }
+        return header;
+    },
+
     buildTime: function(){
         var d = new Date();
         d = d.getTime()/1000
@@ -313,80 +344,89 @@ var OpenPGPEncode = {
     },
     
     generateKeyPair: function(name,email){
+        debugger;
         var rsa = new RSAKey();
         rsa.generate(512,"10001");
-        var privateKeyPacket = this.createSecretKeyPacket(rsa);
-        var hashString = String.fromCharCode(0x99)+privateKeyPacket;
+        var publicKey = this.createPublicKeyPacket(rsa);
+
+        var privateKey = this.createSecretKeyPacket(publicKey.body, rsa);
+        var hashString = String.fromCharCode(0x99)+String.fromCharCode((privateKey.body.length)/0x100)+String.fromCharCode((privateKey.body.length)%0x100)+privateKey.body;
         var userIdPacket = this.createUserIdPacket(name,email);
-        hashString += String.fromCharCode(0xB4)+userIdPacket;
-        var signaturePacket = this.createSignaturePacket(0x10,hashString, rsa); //gpg produces a 0x13 here RFC says most just do 0x10
-        var privateKeyMessage = this.armor(privateKeyPacket+userIdPacket+signaturePacket, 'BEGIN PGP PRIVATE KEY BLOCK');
-        var publicKeyMessage = this.createPublicKeyPacket(rsa);
-        hashString = String.fromCharCode(0x99)+publicKeyMessage+String.fromCharCode(0xB4)+userIdPacket;
-        var signaturePacket = this.createSignaturePacket(0x10,hashString, rsa); //gpg produces a 0x13 here RFC says most just do 0x10
-        publicKeyMessage = this.armor(publicKeyMessage+userIdPacket+signaturePacket, 'BEGIN PGP PUBLIC KEY BLOCK');
+        hashString += String.fromCharCode(0xB4)+String.fromCharCode((userIdPacket.body.length)/0x100)+String.fromCharCode((userIdPacket.body.length)%0x100)+userIdPacket.body;
+        var signaturePacket = this.createSignaturePacket(0x10,hashString, rsa, publicKey.body); //gpg produces a 0x13 here RFC says most just do 0x10
+        var privateKeyMessage = this.armor(privateKey.message+userIdPacket.message+signaturePacket, 'BEGIN PGP PRIVATE KEY BLOCK');
+
+        hashString = String.fromCharCode(0x99)+String.fromCharCode((publicKey.body.length)/0x100)+String.fromCharCode((publicKey.body.length)%0x100)+publicKey.body;
+        hashString += String.fromCharCode(0xB4)+String.fromCharCode((userIdPacket.body.length)/0x100)+String.fromCharCode((userIdPacket.body.length)%0x100)+userIdPacket.body;
+        var signaturePacket = this.createSignaturePacket(0x10,hashString, rsa, publicKey.body); //gpg produces a 0x13 here RFC says most just do 0x10
+        var publicKeyMessage = this.armor(publicKey.message+userIdPacket.message+signaturePacket, 'BEGIN PGP PUBLIC KEY BLOCK');
         return {'private' : privateKeyMessage, 'public' : publicKeyMessage};
     },
     
     createPublicKeyPacket: function(rsa){
         var tag = 6;
-        var packet = String.fromCharCode(4);
-        packet += this.buildTime();
-        packet += String.fromCharCode(this.publicKeyMap['RSA']);//public key algo
-        var algorithmStart = packet.length;
-        packet += rsa.n.toMPI();
+        var body = String.fromCharCode(4);
+        body += this.buildTime();
+        body += String.fromCharCode(this.publicKeyMap['RSA']);//public key algo
+        body += rsa.n.toMPI();
         var e = new BigInteger();
         e.fromInt(rsa.e);
-        packet += e.toMPI();
-        packet = this.packetHeader(tag,packet.length) + packet;
-        return packet;
+        body += e.toMPI();
+        var header = this.packetHeader(tag,body.length);
+        return new packet(header,body);
     },
     
-    createSecretKeyPacket: function(rsa){
+    createSecretKeyPacket: function(publicKeyBody, rsa){
         var tag = 5;
-        var packet = String.fromCharCode(4);
-        packet += this.buildTime();
-        packet += String.fromCharCode(this.publicKeyMap['RSA']);//public key algo
-        var algorithmStart = packet.length;
-        packet += rsa.n.toMPI();
-        var e = new BigInteger();
-        e.fromInt(rsa.e);
-        packet += e.toMPI();
-        //below shows ske/s2k currently disabled (no pw)
-        packet += String.fromCharCode(0);//1 octet -- s2k, 0 for no s2k
+        var body = publicKeyBody;
+        var algorithmStart = 6; //6 bits of extra info
+        //below shows ske/s2k TODO: currently disabled (no pw)
+        body += String.fromCharCode(0);//1 octet -- s2k, 0 for no s2k
         //optional: if s2k == 255,254 then 1 octet symmetric encryption algo
         //optional: if s2k == 255,254 then s2k specifier
         //optional if s2k, IV of same length as cipher's block
-        packet += rsa.d.toMPI();
-        packet += rsa.p.toMPI();
-        packet += rsa.q.toMPI();
-        packet += rsa.coeff.toMPI(); //is this actually u?
-        packet += this.basicChecksum(packet.substr(algorithmStart));//DEPRECATED:s2k == 0, 255: 2 octet checksum, sum all octets%65536 
-        packet = this.packetHeader(tag,packet.length) + packet;
-        return packet;
-
+        body += rsa.d.toMPI();
+        body += rsa.p.toMPI();
+        body += rsa.q.toMPI();
+        body += rsa.coeff.toMPI(); //is this actually u?
+        body += this.basicChecksum(body.substr(algorithmStart));//DEPRECATED:s2k == 0, 255: 2 octet checksum, sum all octets%65536 
+        var header = this.packetHeader(tag,body.length);
+        return new packet(header,body);
     },
     
     createUserIdPacket: function(name, email){
         var tag = 13;
-        var packet = name + ' ' + '<' + email + '>';
-        packet = this.packetHeader(tag,packet.length) + packet;
-        return packet;
+        var body = name + ' ' + '<' + email + '>';
+        var header = this.packetHeader(tag,body.length);
+        return new packet(header,body);
     },
     
     //SC 11/14/11 need to verify that these signatures are accurate.
-    createSignaturePacket: function(signatureType, data, rsa){
+    createSignaturePacket: function(signatureType, data, rsa, keyIdPacket){
         var tag = 2;
         var packet = String.fromCharCode(4); //version num
         packet += String.fromCharCode(signatureType);//signature type
         packet += String.fromCharCode(this.publicKeyMap['RSA']);//public key algo
         packet += String.fromCharCode(2);//hash algo, 2 == SHA1
-        //Below, currently no subpackets for signing.
-        packet += String.fromCharCode(0)+String.fromCharCode(0);//2 octet count of hashed packets
         //hashed subpackets
+        //creation time (2)
+        var subpacket = this.buildTime();
+        subpacket = this.subpacketHeader(2,subpacket.length,false) + subpacket;
+        var subpacketGroup = subpacket;
+        //TODO: pref symmetric algorithms (11)
+        //TODO: pref hash algorithms (21)
+        //TODO: pref zip algorithms (22)
+        packet += String.fromCharCode(subpacketGroup.length/0x100)+String.fromCharCode(subpacketGroup.length%0x100)+subpacketGroup;
         var endSignedPacket = packet.length;
-        packet += String.fromCharCode(0)+String.fromCharCode(0);//2 octet count for non hashed packets
         //unhashed subpackets
+        //issuer (16) (8 octet, key id)
+        debugger;
+        subpacket = String.fromCharCode(0x99)+String.fromCharCode(keyIdPacket.length/0x100)+String.fromCharCode(keyIdPacket.length%0x100)+keyIdPacket;
+        subpacket = str_sha1(subpacket);
+        subpacket = subpacket.substr(subpacket.length-8);
+        subpacketGroup = this.subpacketHeader(16,subpacket.length,false) + subpacket;
+        packet += String.fromCharCode(subpacketGroup.length/0x100)+String.fromCharCode(subpacketGroup.length%0x100)+subpacketGroup;
+        
         //hash(data+(version# through hashed subpacket data))
         var hash = str_sha1(data+packet.substr(1,endSignedPacket));
         //2 octet for left 16 bits of signed hash
