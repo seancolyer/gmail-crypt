@@ -26,6 +26,8 @@ function encrypt(){
 }
 
 function decrypt(event){
+    debugger;
+    OpenPGPEncode.generateKeyPair('Sean Colyer', 'sean@colyer.name');
     var element;
     var msg;
     //we need to use regex here because gmail will automatically form \n into <br> or <wbr>, strip these out

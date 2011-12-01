@@ -41,7 +41,12 @@ function packet(header, body){
     this.body = body;
     this.message = header+body;
 }
- 
+
+//returns a raw-string of the sha1 value
+function sha1(s){
+    return rstr_sha1(str2rstr_utf8(s));
+    }
+
 var OpenPGPEncode = {
     publicKeyMap : {'RSA' : 1},
 
@@ -267,7 +272,7 @@ var OpenPGPEncode = {
      keyId = this.hex2s(keyId);
      var cp = this.GPGpkesk(keyId,keytyp,this.symAlg,sesskey,pkey)+this.GPGsed(sesskey,text);
 
-     return '-----BEGIN PGP MESSAGE-----\nVersion: jsOpenPGP v1\n\n'
+     return '-----BEGIN PGP MESSAGE-----\nVersion: jsOpenPGP v2\n\n'
             +s2r(cp)+'\n='+s2r(this.crc24(cp))+'\n-----END PGP MESSAGE-----\n';
     },
     
@@ -278,6 +283,10 @@ var OpenPGPEncode = {
         if(len>255) h+=String.fromCharCode(len/256);
             h += String.fromCharCode(len%256);
         return h;
+    },
+    
+    calcTwoOctetLength: function(length){
+        return String.fromCharCode(length/0x100)+String.fromCharCode(length%0x100);
     },
     
     //new style OpenPGP header
@@ -333,7 +342,7 @@ var OpenPGPEncode = {
     },
     
     armor: function(message, header){
-        return '-----'+header+'-----\nVersion: jsOpenPGP v1\n\n'
+        return '-----'+header+'-----\nVersion: jsOpenPGP v2\n\n'
             +s2r(message)+'\n='+s2r(this.crc24(message))+'\n-----END PGP MESSAGE-----\n';
     },
     
@@ -343,23 +352,25 @@ var OpenPGPEncode = {
         return sum & 65535    
     },
     
-    generateKeyPair: function(name,email){
+    generateKeyPair: function(name,email,numBits){
         debugger;
         var rsa = new RSAKey();
-        rsa.generate(512,"10001");
-        var publicKey = this.createPublicKeyPacket(rsa);
+        rsa.generate(numBits,"10001");
 
-        var privateKey = this.createSecretKeyPacket(publicKey.body, rsa);
-        var hashString = String.fromCharCode(0x99)+String.fromCharCode((privateKey.body.length)/0x100)+String.fromCharCode((privateKey.body.length)%0x100)+privateKey.body;
         var userIdPacket = this.createUserIdPacket(name,email);
-        hashString += String.fromCharCode(0xB4)+String.fromCharCode((userIdPacket.body.length)/0x100)+String.fromCharCode((userIdPacket.body.length)%0x100)+userIdPacket.body;
-        var signaturePacket = this.createSignaturePacket(0x10,hashString, rsa, publicKey.body); //gpg produces a 0x13 here RFC says most just do 0x10
-        var privateKeyMessage = this.armor(privateKey.message+userIdPacket.message+signaturePacket, 'BEGIN PGP PRIVATE KEY BLOCK');
-
-        hashString = String.fromCharCode(0x99)+String.fromCharCode((publicKey.body.length)/0x100)+String.fromCharCode((publicKey.body.length)%0x100)+publicKey.body;
-        hashString += String.fromCharCode(0xB4)+String.fromCharCode((userIdPacket.body.length)/0x100)+String.fromCharCode((userIdPacket.body.length)%0x100)+userIdPacket.body;
+        
+        var publicKey = this.createPublicKeyPacket(rsa);
+        var hashString = String.fromCharCode(0x99)+this.calcTwoOctetLength(publicKey.body.length)+publicKey.body;
+        hashString += String.fromCharCode(0xB4)+this.calcTwoOctetLength(userIdPacket.body.length)+userIdPacket.body;
         var signaturePacket = this.createSignaturePacket(0x10,hashString, rsa, publicKey.body); //gpg produces a 0x13 here RFC says most just do 0x10
         var publicKeyMessage = this.armor(publicKey.message+userIdPacket.message+signaturePacket, 'BEGIN PGP PUBLIC KEY BLOCK');
+
+        var privateKey = this.createSecretKeyPacket(publicKey.body, rsa);
+        hashString = String.fromCharCode(0x99)+this.calcTwoOctetLength(privateKey.body.length)+privateKey.body;
+        hashString += String.fromCharCode(0xB4)+this.calcTwoOctetLength(userIdPacket.body.length)+userIdPacket.body;
+        signaturePacket = this.createSignaturePacket(0x10,hashString, rsa, publicKey.body); //gpg produces a 0x13 here RFC says most just do 0x10
+        var privateKeyMessage = this.armor(privateKey.message+userIdPacket.message+signaturePacket, 'BEGIN PGP PRIVATE KEY BLOCK');
+
         return {'private' : privateKeyMessage, 'public' : publicKeyMessage};
     },
     
@@ -372,7 +383,7 @@ var OpenPGPEncode = {
         var e = new BigInteger();
         e.fromInt(rsa.e);
         body += e.toMPI();
-        var header = this.packetHeader(tag,body.length);
+        var header = this.packetHeaderOld(tag,body.length);
         return new packet(header,body);
     },
     
@@ -390,7 +401,7 @@ var OpenPGPEncode = {
         body += rsa.q.toMPI();
         body += rsa.coeff.toMPI(); //is this actually u?
         body += this.basicChecksum(body.substr(algorithmStart));//DEPRECATED:s2k == 0, 255: 2 octet checksum, sum all octets%65536 
-        var header = this.packetHeader(tag,body.length);
+        var header = this.packetHeaderOld(tag,body.length);
         return new packet(header,body);
     },
     
@@ -416,19 +427,19 @@ var OpenPGPEncode = {
         //TODO: pref symmetric algorithms (11)
         //TODO: pref hash algorithms (21)
         //TODO: pref zip algorithms (22)
-        packet += String.fromCharCode(subpacketGroup.length/0x100)+String.fromCharCode(subpacketGroup.length%0x100)+subpacketGroup;
+        packet += this.calcTwoOctetLength(subpacketGroup.length)+subpacketGroup;
         var endSignedPacket = packet.length;
         //unhashed subpackets
         //issuer (16) (8 octet, key id)
         debugger;
-        subpacket = String.fromCharCode(0x99)+String.fromCharCode(keyIdPacket.length/0x100)+String.fromCharCode(keyIdPacket.length%0x100)+keyIdPacket;
-        subpacket = str_sha1(subpacket);
+        subpacket = String.fromCharCode(0x99)+this.calcTwoOctetLength(keyIdPacket.length)+keyIdPacket;
+        subpacket = sha1(subpacket);
         subpacket = subpacket.substr(subpacket.length-8);
         subpacketGroup = this.subpacketHeader(16,subpacket.length,false) + subpacket;
-        packet += String.fromCharCode(subpacketGroup.length/0x100)+String.fromCharCode(subpacketGroup.length%0x100)+subpacketGroup;
+        packet += this.calcTwoOctetLength(subpacketGroup.length)+subpacketGroup;
         
         //hash(data+(version# through hashed subpacket data))
-        var hash = str_sha1(data+packet.substr(1,endSignedPacket));
+        var hash = sha1(data+packet.substr(1,endSignedPacket));
         //2 octet for left 16 bits of signed hash
         packet += hash.substr(0,2);
         packet += rsa.sign(hash).toMPI();

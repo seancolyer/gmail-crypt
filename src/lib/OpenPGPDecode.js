@@ -19,6 +19,11 @@
  * materials provided with the application or distribution.
  */
 
+//returns a raw-string of the sha1 value
+function sha1(s){
+    return rstr_sha1(str2rstr_utf8(s));
+    }
+
 var OpenPGPDecode = {
     bpbl : 16,   // block size in bytes
 
@@ -286,7 +291,7 @@ var OpenPGPDecode = {
               {
                 pass = window.prompt("Password:", "");
 
-                if(hash == 2) key = str_sha1(pass);
+                if(hash == 2) key = sha1(pass);
               }
               else if(s2k==1)
               {
@@ -295,7 +300,7 @@ var OpenPGPDecode = {
                 r+='salt:'+s.charCodeAt(i++)+','+s.charCodeAt(i++)+','+s.charCodeAt(i++)+','+s.charCodeAt(i++)+','
                           +s.charCodeAt(i++)+','+s.charCodeAt(i++)+','+s.charCodeAt(i++)+','+s.charCodeAt(i++);
 
-                if(hash == 2) key = str_sha1(pass);
+                if(hash == 2) key = sha1(pass);
               }
               else if(s2k==3)
               {
@@ -317,7 +322,7 @@ var OpenPGPDecode = {
 
                 r+= ' count:'+ s.charCodeAt(i++) + '=>' + cnt;
 
-                if(hash == 2) key = str_sha1(isp);
+                if(hash == 2) key = sha1(isp);
               }
               r+='\nKey:';
 
@@ -357,7 +362,7 @@ var OpenPGPDecode = {
               if(ske == 254)
               {
                 elen -= 20
-                var sha = str_sha1(text.substr(0, elen));
+                var sha = sha1(text.substr(0, elen));
                 var n;
                 for(n=0; n < 20; n++)
                 {
@@ -461,7 +466,7 @@ var OpenPGPDecode = {
             {
               var pkt = String.fromCharCode(0x99) + String.fromCharCode(len>>8) 
                         + String.fromCharCode(len&255)+s.substr(k, len);
-              fp = str_sha1(pkt);
+              fp = sha1(pkt);
               keyid=this.str2hex(fp.substr(fp.length-8,8));
               fp=this.str2hex(fp);
             }
@@ -489,7 +494,7 @@ var OpenPGPDecode = {
 
             var pkt = String.fromCharCode(0x99) + String.fromCharCode(len>>8) 
                         + String.fromCharCode(len&255)+s.substr(k, len);
-            fp = str_sha1(pkt);
+            fp = sha1(pkt);
             keyid=this.str2hex(fp.substr(fp.length-8,8));
             fp=this.str2hex(fp);
             type="ELGAMAL";
