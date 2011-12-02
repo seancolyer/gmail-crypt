@@ -1,6 +1,6 @@
 {
 "name":"gmail-crypt extension",
-"version":"1",
+"version":"2",
 "description":"Extension implementing GPG into Webmail (Gmail) using JS and the jsOpenPGP library",
 "icons": {
 "128":"gmail-crypt128.png"
