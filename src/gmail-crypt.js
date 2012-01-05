@@ -15,13 +15,15 @@ function encrypt(){
     var to = gCryptUtil.parseUser(form.find('textarea[name="to"]').val()).userEmail;
 	var contents = form.find('iframe[class="Am Al editable"]')[0].contentDocument.body;
    chrome.extension.sendRequest({method: "getPublicKey",email:to}, function(response){
-        if(response.results.length == 0){
+        debugger;
+        if(response.length == 0){
                 gCryptUtil.notify('No keys found for this user.');
                 return;
         }
-        var publicKeyId = response.results[0].key_id;
-        var publicKey = response.results[0].key;
-        contents.innerText = OpenPGPEncode.encrypt(publicKeyId,0,publicKey,contents.innerText);
+        contents.innerText = openpgp.write_encrypted_message(response[0],contents.innerText);
+        //var publicKeyId = response.results[0].key_id;
+        //var publicKey = response.results[0].key;
+        //contents.innerText = OpenPGPEncode.encrypt(publicKeyId,0,publicKey,contents.innerText);
    });
 }
 
@@ -114,9 +116,10 @@ function onLoad() {
 	if($('#canvas_frame').length == 1){
 	   document.addEventListener("DOMSubtreeModified",composeIntercept,false);
      }
+    openpgp.init();
     //SC I don't like the way this is run.
-	OpenPGPEncode.rnTimer();
-	eventsCollect();
+	//OpenPGPEncode.rnTimer();
+	//eventsCollect();
 }
 
 $(document).ready(onLoad);

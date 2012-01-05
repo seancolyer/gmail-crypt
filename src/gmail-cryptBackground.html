@@ -1,6 +1,6 @@
 <html>
-<script src='gmail-cryptDb.js'></script>
-
+<script src='lib/openpgp.js'></script>
+<script src='gmail-cryptUtils.js'></script>
 <script>
 
 /* This is the background page for gmail-crypt that communicates between gmail and the extension. 
@@ -10,46 +10,29 @@
  * See included "LICENSE" file for details.
  */
 
-
-//TODO: Abstract queries away...
-var currResults = '';
-var responseFunction;
-
-function queryValue(rows){
-    currResults = rows;
-    responseFunction({results: rows});
-}
-
-function queryError(){
-    //will there be queries that aren't from a listener call?
-    responseFunction({});
-    debugger;
-}
-
+//TODO how do we want to handle errors?
 chrome.extension.onRequest.addListener(function(request,sender,sendResponse){
-    responseFunction = sendResponse;
-    gCryptDb.setupDb();
     if(request.method == "getPublicKeys"){
-        gCryptDb.queryPublicKeys(queryValue, queryError);
+        sendResponse(openpgp.keyring.publicKeys);
     }
     if(request.method == "getPublicKey"){
-        gCryptDb.query('SELECT * FROM publicKey WHERE email="'+request.email+'"',[], queryValue, queryError);
+        sendResponse(openpgp.keyring.getPublicKeyForAddress(request.email));
     }
-    //Should select a single private key by key_id
     if(request.method == "getPrivateKey"){
-        gCryptDb.query('SELECT * FROM privateKey',[], queryValue, queryError);
+        sendResponse(openpgp.keyring.getPrivateKeyForAddress(request.email));
     }
     if(request.method == "getPrivateKeys"){
-        gCryptDb.queryPrivateKeys(queryValue, queryError);
+        sendResponse(openpgp.keyring.privateKeys);
     }
     else{
     }
 });
 
+
 function onLoad(){
+    openpgp.init();
 }
 
 document.onload = onLoad();
-
 </script>
 </html>

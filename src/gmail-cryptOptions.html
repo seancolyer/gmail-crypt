@@ -138,117 +138,82 @@
 </div>
 </body>
 
-<script src='gmail-cryptDb.js'></script>
 <script src='gmail-cryptUtil.js'></script>
 <script src='lib/jquery-1.6.2.min.js'></script>
 <script src='lib/jqModal.js'></script>
-<script src='lib/OpenPGPDecode.js'></script>
-<script src='lib/OpenPGPEncode.js'></script>
-<script src='lib/base64.js'></script>
-<script src='lib/cast5.js'></script>
-<script src='lib/sha1.js'></script>
-<script src='lib/prng4.js'></script>
-<script src='lib/rng.js'></script>
-<script src='lib/jsbn.js'></script>
-<script src='lib/jsbn2.js'></script>
-<script src='lib/rsa.js'></script>
-<script src='lib/rsa2.js'></script>
+<script src='lib/openpgp.js'></script>
 <script>
    var privateKeyFormToggle = true;
    var publicKeyFormToggle = true;
    var generateKeyFormToggle = true;
    
-   function generateKeyPair(){
-        var name = $('#name').val();
-        var email = $('#email').val();
-        var numBits = parseInt($('#numBits').val());
-        var keyPair = OpenPGPEncode.generateKeyPair(name,email,numBits);
-        insertPrivateKey(keyPair.private);
-        insertPublicKey(keyPair.public);
-   }
-   
-   function insertPrivateKey(privKey){
-        if(privKey == undefined){
-            privKey = $('#newPrivateKey').val();
-        }
-       var results = OpenPGPDecode.decode(privKey);
-       for(var n=0;n<results.length;n++){
-            if(results[n].tag == 13){
-                var user = results[n].user;
-            }
-        }
-       for(var n=0;n<results.length;n++){
-            if(results[n].tag == 5 || results[n].tag == 7){
-                var rsa = results[n].rsa;
-                gCryptDb.insertPrivateKey(user, privKey,'', rsa.d.toString(16), rsa.p.toString(16),rsa.q.toString(16),'', function(){gCryptDb.queryPrivateKeys(parsePrivateKeys,queryError);}, queryError);
-
-            }
-        }
-
-       return true;
-   }
-    
-   function insertPublicKeySuccess(){
-       gCryptDb.queryPublicKeys(parsePublicKeys,queryError);
-   }
-    
-   function insertPublicKey(pubKey){
-        if(pubKey == undefined){
-           pubKey = $('#newPublicKey').val();
-        }
-       var results = OpenPGPDecode.decode(pubKey);
-       //how do we know which key to encrypt to?
-       for(var n=0; n<results.length; n++){
-        if(results[n].tag == 6 || results[n].tag == 14){
-            var vers = results[n].vers;
-            var fp = results[n].fp;
-            var keyid = results[n].keyid;
-            var pkey = results[n].pkey;
-        }
-        if(results[n].tag == 13){
-            var user = results[n].user;
-        }        
-       }
-       gCryptDb.insertPublicKey(vers, fp, keyid, user, pkey, pubKey, insertPublicKeySuccess, queryError);
-       return true;
-   }
-   
-   function queryError(error){
-       debugger;
-       alert(error);
-   }
-   
-   function queryPublicKeys(){
-      gCryptDb.queryPublicKeys(parsePublicKeys,queryError)        
-   }
-
-    function queryPrivateKeys(){
-          gCryptDb.queryPrivateKeys(parsePrivateKeys,queryError);
+   function showMessages(msg){
+        debugger;
     }
-
-   function parsePublicKeys(keys){
+   
+   function generateKeyPair(){
+        //var name = $('#name').val();
+        //var email = $('#email').val();
+        //var numBits = parseInt($('#numBits').val());
+        //var keyPair = OpenPGPEncode.generateKeyPair(name,email,numBits);
+   }
+   
+   function insertPrivateKey(){
+       var privKey = $('#newPrivateKey').val();
+       try{
+           openpgp.keyring.importPrivateKey(privKey);
+           openpgp.keyring.store();
+           parsePrivateKeys();
+           return true;
+       }
+       catch(e){
+       }
+       return false;
+   }
+    
+   function insertPublicKey(){
+        var pubKey = $('#newPublicKey').val();
+        try{
+            openpgp.keyring.importPublicKey(pubKey);
+            openpgp.keyring.store();
+            parsePublicKeys();
+            return true;
+        }
+        catch(e){
+        }
+        return false;
+   }
+   
+   function parsePublicKeys(){
+      var keys = openpgp.keyring.publicKeys;
       $('#publicKeyTable>tbody>tr[class!=tableHeader]').remove();
       for(var k=0;k<keys.length;k++){
-          $('#publicKeyTable>tbody').append('<tr><td class="removeLink" id="'+keys[k].id+'"><a href="#">remove</a></td><td>'+keys[k].name+'</td><td>'+keys[k].email+'</td><td>'+keys[k].key_id+'</td><td><a href="#" id="publicTrigger'+keys[k].id+'">show key</a><div class="jqmWindow" id="public'+keys[k].id+'"><a href="#" class="jqmClose">Close</a><br/ >'+keys[k].key_raw.replace(/\n/g,'<br/ >')+'</div></td></tr>');
-          $('#public'+keys[k].id).jqm();
-          $('#public'+keys[k].id).jqmAddTrigger($('#publicTrigger'+keys[k].id));
+          var key = keys[k];
+          var user = gCryptUtil.parseUser(key.obj.userIds[0].text);
+          $('#publicKeyTable>tbody').append('<tr><td class="removeLink" id="'+k+'"><a href="#">remove</a></td><td>'+user.userName+'</td><td>'+user.userEmail+'</td><td>'+util.hexstrdump(key.keyId)+'</td><td><a href="#" id="publicTrigger'+k+'">show key</a><div class="jqmWindow" id="public'+k+'"><a href="#" class="jqmClose">Close</a><br/ >'+key.armored.replace(/\n/g,'<br/ >')+'</div></td></tr>');
+          $('#public'+k).jqm();
+          $('#public'+k).jqmAddTrigger($('#publicTrigger'+k));
       }
       $('#publicKeyTable .removeLink').click(function(e){
-        //Is there a better way to get the calling id of the dom element that calls this than e.currentTarget.id?
-            gCryptDb.removePublicKey(e.currentTarget.id, queryPublicKeys, queryError);
-      });
+        openpgp.keyring.removePublicKey(e.currentTarget.id);
+        parsePublicKeys();
+        });
    }
    
-   function parsePrivateKeys(keys){
+   function parsePrivateKeys(){
+      var keys = openpgp.keyring.privateKeys;
       $('#privateKeyTable>tbody>tr[class!=tableHeader]').remove();
       for(var k=0;k<keys.length;k++){
-          $('#privateKeyTable>tbody').append('<tr><td class="removeLink" id="'+keys[k].id+'"><a href="#">remove</a></td><td>'+keys[k].name+'</td><td>'+keys[k].email+'</td><td><a href="#" id="privateTrigger'+keys[k].id+'">show key</a><div class="jqmWindow" id="private'+keys[k].id+'"><a href="#" class="jqmClose">Close</a><br/ >'+keys[k].key.replace(/\n/g,'<br/ >')+'</div></td></tr>');
-          $('#private'+keys[k].id).jqm();
-          $('#private'+keys[k].id).jqmAddTrigger($('#privateTrigger'+keys[k].id));
+          var key = keys[k];
+          var user = gCryptUtil.parseUser(key.obj.userIds[0].text);
+          //util.hexstrdump(key.keyId)
+          $('#privateKeyTable>tbody').append('<tr><td class="removeLink" id="'+k+'"><a href="#">remove</a></td><td>'+user.userName+'</td><td>'+user.userEmail+'</td><td><a href="#" id="privateTrigger'+k+'">show key</a><div class="jqmWindow" id="private'+k+'"><a href="#" class="jqmClose">Close</a><br/ >'+key.armored.replace(/\n/g,'<br/ >')+'</div></td></tr>');
+          $('#private'+k).jqm();
+          $('#private'+k).jqmAddTrigger($('#privateTrigger'+k));
       }
       $('#privateKeyTable .removeLink').click(function(e){
-        //Is there a better way to get the calling id of the dom element that calls this?
-        gCryptDb.removePrivateKey(e.currentTarget.id,queryPrivateKeys, queryError);      
+        openpgp.keyring.removePrivateKey(e.currentTarget.id);
+        parsePrivateKeys();
       });
    }
 
@@ -261,9 +226,9 @@
    }
    
    function onLoad(){
-      gCryptDb.setupDb();
-      queryPublicKeys();
-      queryPrivateKeys();
+        openpgp.init();
+      parsePrivateKeys();
+      parsePublicKeys();
       $('#privateKeySpan').hide();
       $('#publicKeySpan').hide();
       $('#externalSpan').hide();
