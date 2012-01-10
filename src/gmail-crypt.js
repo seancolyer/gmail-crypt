@@ -9,22 +9,32 @@ var menubarLoaded = false;
 var viewTitleBarLoaded = false;
 //gmailVersion was added with the new role out ~11/3/11 of the new gmail style. Value 1 is for old style, 2 is for new.
 var gmailVersion = 0;
+var openpgpLog;
+
+function showMessages(str){
+openpgpLog += str;
+}
 
 function encrypt(){
 	var form = $('#canvas_frame').contents().find('form');
     var to = gCryptUtil.parseUser(form.find('textarea[name="to"]').val()).userEmail;
 	var contents = form.find('iframe[class="Am Al editable"]')[0].contentDocument.body;
-   chrome.extension.sendRequest({method: "getPublicKey",email:to}, function(response){
-        debugger;
-        if(response.length == 0){
-                gCryptUtil.notify('No keys found for this user.');
-                return;
-        }
-        contents.innerText = openpgp.write_encrypted_message(response[0],contents.innerText);
-        //var publicKeyId = response.results[0].key_id;
-        //var publicKey = response.results[0].key;
-        //contents.innerText = OpenPGPEncode.encrypt(publicKeyId,0,publicKey,contents.innerText);
-   });
+	var privKey;
+	//TODO: make using a signature optional.
+    chrome.extension.sendRequest({method: "getPrivateKeys"}, function(response){
+        privKey = openpgp.read_privateKey(response[0].armored)[0];
+        chrome.extension.sendRequest({method: "getPublicKey",email:to}, function(response){
+            debugger;
+            var pubKey = openpgp.read_publicKey(response[0].armored);
+            if(response.length == 0){
+                    gCryptUtil.notify('No keys found for this user.');
+                    return;
+            }
+            contents.innerText = openpgp.write_signed_and_encrypted_message(privKey,pubKey,contents.innerText);
+            });
+
+        });
+
 }
 
 function decrypt(event){
@@ -46,35 +56,33 @@ function decrypt(event){
     
     //originally stripped just <br> and <wbr> but gmail can add other things such as <div class="im">
     msg = msg.replace(/<(.*?)>/g,'');
+    msg = openpgp.read_message(msg);
+    if(msg == null){
+        gCryptUtil.notify('No message found');
+        return;
+    }
+    msg = msg[0];
     chrome.extension.sendRequest({method: "getPrivateKeys"}, function(response){
-        for(var r = 0; r<response.results.length;r++){
-            var key = response.results[r];
-            var rsa = new RSAKey();
-            rsa.setPrivateAutoComplete(new BigInteger(key.p, 16),new BigInteger(key.q, 16),new BigInteger(key.d, 16));
-            try{
-                var results = OpenPGPDecode.decode(msg, rsa);
-                var text = '';
-                for(var n=0; n<results.length;n++){
-                    if(results[n].tag==11){
-                        text = results[n].text
-                    }
+        for(var r = 0; r<response.length;r++){
+            debugger;
+            var key = openpgp.read_privateKey(response[r].armored)[0];
+            var material = {key: key , keymaterial: key.privateKeyPacket};
+            var sessionKey = msg.sessionKeys[0];
+            var text = msg.decrypt(material, sessionKey);
+            if(text != ''){
+                element.html(text.replace(/\n/g,'<br>'));
+                return;
                 }
-                if(text.length > 0){
+			for (var j = 0; j < key.subKeys.length; j++) {
+				keymat = { key: priv_key[0], keymaterial: priv_key[0].subKeys[j]};
+				sesskey = msg[0].sessionKeys[i];
+                text = msg.decrypt(material, sessionKey);
+                if(text != ''){
                     element.html(text.replace(/\n/g,'<br>'));
                     return;
-                }
-                else{
-                    gCryptUtil.notify('No text found');
-                }
+                    }
+    		    }
             }
-            catch(e){
-                if(e == gCryptUtil.noArmoredText){
-                    gCryptUtil.notify(e);
-                    return;
-                }
-            }
-        }
-        gCryptUtil.notify('Unable to decrypt this message.');
         });
     }
 
@@ -106,7 +114,6 @@ function composeIntercept(ev) {
             if( $(this).find('#gCryptDecrypt').length == 0){
 	            $(this).prepend('<span id="gCryptDecrypt"><a href="#"><img src="'+chrome.extension.getURL("images/decryptIcon.png")+'"/>decrypt me</a></span>');
                 $(this).find('#gCryptDecrypt').click(decrypt);
-                //this.firstChild.addEventListener("click",decrypt,false);
             }
         });
     }
@@ -117,9 +124,6 @@ function onLoad() {
 	   document.addEventListener("DOMSubtreeModified",composeIntercept,false);
      }
     openpgp.init();
-    //SC I don't like the way this is run.
-	//OpenPGPEncode.rnTimer();
-	//eventsCollect();
 }
 
 $(document).ready(onLoad);
