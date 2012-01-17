@@ -152,10 +152,13 @@
     }
    
    function generateKeyPair(){
-        //var name = $('#name').val();
-        //var email = $('#email').val();
-        //var numBits = parseInt($('#numBits').val());
-        //var keyPair = OpenPGPEncode.generateKeyPair(name,email,numBits);
+   		var keyPair = openpgp.generate_key_pair(1,parseInt($('#numBits').val()), $('#name').val() + ' <' + $('#email').val() + '>', 8 );
+   		openpgp.keyring.importPrivateKey(keyPair.privateKeyArmored);
+   		openpgp.keyring.store();
+   		openpgp.keyring.importPublicKey(keyPair.publicKeyArmored);
+   		openpgp.keyring.store();
+   		parsePrivateKeys();
+   		parsePublicKeys();
    }
    
    function insertPrivateKey(){
@@ -196,6 +199,7 @@
       }
       $('#publicKeyTable .removeLink').click(function(e){
         openpgp.keyring.removePublicKey(e.currentTarget.id);
+        openpgp.keyring.store();
         parsePublicKeys();
         });
    }
@@ -213,6 +217,7 @@
       }
       $('#privateKeyTable .removeLink').click(function(e){
         openpgp.keyring.removePrivateKey(e.currentTarget.id);
+        openpgp.keyring.store();
         parsePrivateKeys();
       });
    }
