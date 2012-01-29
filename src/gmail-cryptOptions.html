@@ -152,7 +152,7 @@
     }
    
    function generateKeyPair(){
-   		var keyPair = openpgp.generate_key_pair(1,parseInt($('#numBits').val()), $('#name').val() + ' <' + $('#email').val() + '>', 8 );
+   		var keyPair = openpgp.generate_key_pair(1,parseInt($('#numBits').val()), $('#name').val() + ' <' + $('#email').val() + '>');
    		openpgp.keyring.importPrivateKey(keyPair.privateKeyArmored);
    		openpgp.keyring.store();
    		openpgp.keyring.importPublicKey(keyPair.publicKeyArmored);

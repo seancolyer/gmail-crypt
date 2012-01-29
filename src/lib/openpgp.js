@@ -3324,7 +3324,6 @@ function openpgp_packet_keymaterial() {
      * @return {body: [string]OpenPGP packet body contents, header: [string] OpenPGP packet header, string: [string] header+body}
      */
     function write_private_key(keyType, key){
-    	debugger;
 		var tag = 5;
 		var body = String.fromCharCode(4);
 		//TODO make the date into a util function
@@ -3345,7 +3344,7 @@ function openpgp_packet_keymaterial() {
 		    body += key.d.toMPI();
 		    body += key.p.toMPI();
 		    body += key.q.toMPI();
-		    body += key.coeff.toMPI();
+		    body += key.u.toMPI();
 		    break;
 		default :
 			body = "";
@@ -7307,12 +7306,11 @@ function RSA() {
         this.q = null;
         this.dmp1 = null;
         this.dmq1 = null;
-        this.coeff = null;
+        this.u = null;
     }
 	
 	// Generate a new random private key B bits long, using public expt E
     function generate(B,E) {
-    	debugger;
         var key = new keyObject();
         var rng = new SecureRandom();
         var qs = B>>1;
@@ -7340,7 +7338,7 @@ function RSA() {
                 key.d = key.ee.modInverse(phi);
                 key.dmp1 = key.d.mod(p1);
                 key.dmq1 = key.d.mod(q1);
-                key.coeff = key.q.modInverse(key.p);
+                key.u = key.p.modInverse(key.q);
                 break;
             }
         }
@@ -9590,6 +9588,15 @@ function openpgp_crypto_getRandomBigIntegerInRange(min, max) {
 }
 
 
+//This is a test method to ensure that encryption/decryption with a given 1024bit RSAKey object functions as intended
+function openpgp_crypto_testRSA(key){
+	debugger;
+    var rsa = new RSA();
+	var mpi = new openpgp_type_mpi();
+	mpi.create(openpgp_encoding_eme_pkcs1_encode('ABABABAB', 128));
+	var msg = rsa.encrypt(mpi.toBigInteger(),key.ee,key.n);
+	var result = rsa.decrypt(msg, key.d, key.p, key.q, key.u);
+}
 /**
  * calls the necessary crypto functions to generate a keypair. Called directly by openpgp.js
  * @keyType [int] follows OpenPGP algorithm convention.
@@ -9968,10 +9975,9 @@ function _openpgp () {
 	 * @param keyType [int] to indicate what type of key to make. RSA is 1. Follows algorithms outlined in OpenPGP.
 	 * @param numBits [int] number of bits for the key creation. (should be 1024+, generally)
 	 * @userId [string] assumes already in form of "User Name <username@email.com>"
-	 * @preferredHashAlgorithm [int]
 	 * @return {privateKey: [openpgp_msg_privatekey], privateKeyArmored: [string], publicKeyArmored: [string]}
 	 */
-	function generate_key_pair(keyType, numBits, userId,preferredHashAlgorithm){
+	function generate_key_pair(keyType, numBits, userId){
 		var userIdPacket = new openpgp_packet_userid();
 		var userIdString = userIdPacket.write_packet(userId);
 		
@@ -9980,7 +9986,7 @@ function _openpgp () {
 		var privKeyPacket = new openpgp_packet_keymaterial().read_priv_key(privKeyString.string,3,privKeyString.string.length-3);
 		var privKey = new openpgp_msg_privatekey();
 		privKey.privateKeyPacket = privKeyPacket;
-		privKey.getPreferredSignatureHashAlgorithm = function(){return preferredHashAlgorithm};//need to override this to solve catch 22 to generate signature. 8 is value for SHA256
+		privKey.getPreferredSignatureHashAlgorithm = function(){return openpgp.config.config.prefer_hash_algorithm};//need to override this to solve catch 22 to generate signature. 8 is value for SHA256
 		
 		var publicKeyString = privKey.privateKeyPacket.publicKey.data;
 		var hashData = String.fromCharCode(0x99)+ String.fromCharCode(((publicKeyString.length) >> 8) & 0xFF) 
@@ -10868,7 +10874,6 @@ function openpgp_encoding_armor(messagetype, data, partindex, parttotal) {
 	case 5:
 		result += "-----BEGIN PGP PRIVATE KEY BLOCK-----\r\n";
 		result += openpgp_encoding_armor_addheader();
-		result += '\r\n';
 		result += openpgp_encoding_base64_encode(data);
 		result += "\r\n="+getCheckSum(data)+"\r\n";
 		result += "-----END PGP PRIVATE KEY BLOCK-----\r\n";
