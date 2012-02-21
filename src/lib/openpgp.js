@@ -1026,12 +1026,12 @@ function openpgp_packet_encryptedintegrityprotecteddata() {
 		var tohash = data;
 		tohash += String.fromCharCode(0xD3);
 		tohash += String.fromCharCode(0x14);
-		util.print_debug("data to be hashed:"
-				+ util.hexstrdump(prefix + tohash));
+		util.print_debug_hexstr_dump("data to be hashed:"
+				, prefix + tohash);
 		tohash += str_sha1(prefix + tohash);
-		util.print_debug("hash:"
-				+ util.hexstrdump(tohash.substring(tohash.length - 20,
-						tohash.length)));
+		util.print_debug_hexstr_dump("hash:"
+				, tohash.substring(tohash.length - 20,
+						tohash.length));
 		var result = openpgp_crypto_symmetricEncrypt(prefixrandom,
 				symmetric_algorithm, key, tohash, false).substring(0,
 				prefix.length + tohash.length);
@@ -1061,7 +1061,7 @@ function openpgp_packet_encryptedintegrityprotecteddata() {
 				symmetric_algorithm_type, key, this.encryptedData)
 				+ this.decryptedData.substring(0,
 						this.decryptedData.length - 20));
-		util.print_debug("calc hash = " + util.hexstrdump(this.hash));
+		util.print_debug_hexstr_dump("calc hash = ", this.hash);
 		if (this.hash == this.decryptedData.substring(
 				this.decryptedData.length - 20, this.decryptedData.length))
 			return this.decryptedData;
@@ -1087,7 +1087,8 @@ function openpgp_packet_encryptedintegrityprotecteddata() {
 	this.read_packet = read_packet;
 	this.toString = toString;
 	this.decrypt = decrypt;
-};// GPG4Browsers - An OpenPGP implementation in javascript
+};
+// GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
 // This library is free software; you can redistribute it and/or
@@ -3063,7 +3064,7 @@ function openpgp_packet_keymaterial() {
     			str_sha1(cleartextMPIs.substring(0,cleartextMPIs.length - 20)) == 
     				cleartextMPIs.substring(cleartextMPIs.length - 20)) {
     		cleartextMPIslength -= 20;
-    	} else if (this.s2kUsageConcentions != 254 && util.calc_checksum(cleartextMPIs.substring(0,cleartextMPIs.length - 2)) == 
+    	} else if (this.s2kUsageConventions != 254 && util.calc_checksum(cleartextMPIs.substring(0,cleartextMPIs.length - 2)) == 
     			(cleartextMPIs.charCodeAt(cleartextMPIs.length -2) << 8 | cleartextMPIs.charCodeAt(cleartextMPIs.length -1))) {
     		cleartextMPIslength -= 2;
     	} else {
@@ -8957,10 +8958,12 @@ function openpgp_cfb_encrypt(prefixrandom, blockcipherencryptfn, plaintext, bloc
 	    //	   that we have finished encrypting the 10 octets of prefixed data.
 	    // 	   This produces C11-C18, the next 8 octets of ciphertext.
 		for (var i = 2; i < block_size; i++) ciphertext += String.fromCharCode(FRE[i] ^ plaintext.charCodeAt(i));
-
+		var tempCiphertext = ciphertext.substring(0,2*block_size).split('');
+		var tempCiphertextString = ciphertext.substring(block_size);
 		for(n=block_size; n<plaintext.length; n+=block_size) {
 			// 10. FR is loaded with C11-C18
-			for (var i = 0; i < block_size; i++) FR[i] = ciphertext.charCodeAt(n+i);
+			for (var i = 0; i < block_size; i++) FR[i] = tempCiphertextString.charCodeAt(i);
+			tempCiphertextString='';
 			
 			// 11. FR is encrypted to produce FRE.
 			FRE = blockcipherencryptfn(FR, key);
@@ -8968,8 +8971,11 @@ function openpgp_cfb_encrypt(prefixrandom, blockcipherencryptfn, plaintext, bloc
 			// 12. FRE is xored with the next 8 octets of plaintext, to produce the
 			//     next 8 octets of ciphertext.  These are loaded into FR and the
 			//     process is repeated until the plaintext is used up.
-			for (var i = 0; i < block_size; i++) ciphertext += String.fromCharCode(FRE[i] ^ plaintext.charCodeAt(n+i));
+			for (var i = 0; i < block_size; i++){ tempCiphertext.push(String.fromCharCode(FRE[i] ^ plaintext.charCodeAt(n+i)));
+			tempCiphertextString += String.fromCharCode(FRE[i] ^ plaintext.charCodeAt(n+i));
+			}
 		}
+		ciphertext = tempCiphertext.join('');
 		
 	}
 	return ciphertext;
@@ -9867,7 +9873,7 @@ function _openpgp () {
 	function write_signed_and_encrypted_message(privatekey, publickeys, messagetext) {
 		var result = "";
 		var literal = new openpgp_packet_literaldata().write_packet(messagetext.replace(/\r\n/g,"\n").replace(/\n/g,"\r\n"));
-		util.print_debug("literal_packet: |"+literal+"|\n"+util.hexstrdump(literal));
+		util.print_debug_hexstr_dump("literal_packet: |"+literal+"|\n",literal);
 		for (var i = 0; i < publickeys.length; i++) {
 			var onepasssignature = new openpgp_packet_onepasssignature();
 			var onepasssigstr = "";
@@ -9875,9 +9881,9 @@ function _openpgp () {
 				onepasssigstr = onepasssignature.write_packet(1, openpgp.config.config.prefer_hash_algorithm,  privatekey, false);
 			else
 				onepasssigstr = onepasssignature.write_packet(1, openpgp.config.config.prefer_hash_algorithm,  privatekey, false);
-			util.print_debug("onepasssigstr: |"+onepasssigstr+"|\n"+util.hexstrdump(onepasssigstr));
+			util.print_debug_hexstr_dump("onepasssigstr: |"+onepasssigstr+"|\n",onepasssigstr);
 			var datasignature = new openpgp_packet_signature().write_message_signature(1, messagetext.replace(/\r\n/g,"\n").replace(/\n/g,"\r\n"), privatekey);
-			util.print_debug("datasignature: |"+datasignature.openpgp+"|\n"+util.hexstrdump(datasignature.openpgp));
+			util.print_debug_hexstr_dump("datasignature: |"+datasignature.openpgp+"|\n",datasignature.openpgp);
 			if (i == 0) {
 				result = onepasssigstr+literal+datasignature.openpgp;
 			} else {
@@ -9885,7 +9891,7 @@ function _openpgp () {
 			}
 		}
 		
-		util.print_debug("signed packet: |"+result+"|\n"+util.hexstrdump(result));
+		util.print_debug_hexstr_dump("signed packet: |"+result+"|\n",result);
 		// signatures done.. now encryption
 		var sessionkey = openpgp_crypto_generateSessionKey(openpgp.config.config.encryption_cipher); 
 		var result2 = "";
@@ -9924,7 +9930,7 @@ function _openpgp () {
 	function write_encrypted_message(publickeys, messagetext) {
 		var result = "";
 		var literal = new openpgp_packet_literaldata().write_packet(messagetext.replace(/\r\n/g,"\n").replace(/\n/g,"\r\n"));
-		util.print_debug("literal_packet: |"+literal+"|\n"+util.hexstrdump(literal));
+		util.print_debug_hexstr_dump("literal_packet: |"+literal+"|\n",literal);
 		result = literal;
 		
 		// signatures done.. now encryption
@@ -10912,21 +10918,42 @@ function verifyCheckSum(data, checksum) {
  * @param data [String] data to create a CRC-24 checksum for
  * @return [Integer] the CRC-24 checksum as number
  */
-function createcrc24 (data) {
-	var crc = 0xB704CE;
-	var i;
-	var mypos = 0;
-	var len = data.length;
-	while (len--) {
-		crc ^= (data[mypos++].charCodeAt()) << 16;
-		for (i = 0; i < 8; i++) {
-			crc <<= 1;
-			if (crc & 0x1000000)
-            	crc ^= 0x1864CFB;
-        }
-    }
-    return crc & 0xFFFFFF;
+var crc_table = [
+0x00000000, 0x00864cfb, 0x018ad50d, 0x010c99f6, 0x0393e6e1, 0x0315aa1a, 0x021933ec, 0x029f7f17, 0x07a18139, 0x0727cdc2, 0x062b5434, 0x06ad18cf, 0x043267d8, 0x04b42b23, 0x05b8b2d5, 0x053efe2e, 0x0fc54e89, 0x0f430272, 0x0e4f9b84, 0x0ec9d77f, 0x0c56a868, 0x0cd0e493, 0x0ddc7d65, 0x0d5a319e, 0x0864cfb0, 0x08e2834b, 0x09ee1abd, 0x09685646, 0x0bf72951, 0x0b7165aa, 0x0a7dfc5c, 0x0afbb0a7, 0x1f0cd1e9, 0x1f8a9d12, 0x1e8604e4, 0x1e00481f, 0x1c9f3708, 0x1c197bf3, 0x1d15e205, 0x1d93aefe, 0x18ad50d0, 0x182b1c2b, 0x192785dd, 0x19a1c926, 0x1b3eb631, 0x1bb8faca, 0x1ab4633c, 0x1a322fc7, 0x10c99f60, 0x104fd39b, 0x11434a6d, 0x11c50696, 0x135a7981, 0x13dc357a, 0x12d0ac8c, 0x1256e077, 0x17681e59, 0x17ee52a2, 0x16e2cb54, 0x166487af, 0x14fbf8b8, 0x147db443, 0x15712db5, 0x15f7614e, 0x3e19a3d2, 0x3e9fef29, 0x3f9376df, 0x3f153a24, 0x3d8a4533, 0x3d0c09c8, 0x3c00903e, 0x3c86dcc5, 0x39b822eb, 0x393e6e10, 0x3832f7e6, 0x38b4bb1d, 0x3a2bc40a, 0x3aad88f1, 0x3ba11107, 0x3b275dfc, 0x31dced5b, 0x315aa1a0,
+0x30563856, 0x30d074ad, 0x324f0bba, 0x32c94741, 0x33c5deb7, 0x3343924c, 0x367d6c62, 0x36fb2099, 0x37f7b96f, 0x3771f594, 0x35ee8a83, 0x3568c678, 0x34645f8e, 0x34e21375, 0x2115723b, 0x21933ec0, 0x209fa736, 0x2019ebcd, 0x228694da, 0x2200d821, 0x230c41d7, 0x238a0d2c, 0x26b4f302, 0x2632bff9, 0x273e260f, 0x27b86af4, 0x252715e3, 0x25a15918, 0x24adc0ee, 0x242b8c15, 0x2ed03cb2, 0x2e567049, 0x2f5ae9bf, 0x2fdca544, 0x2d43da53, 0x2dc596a8, 0x2cc90f5e, 0x2c4f43a5, 0x2971bd8b, 0x29f7f170, 0x28fb6886, 0x287d247d, 0x2ae25b6a, 0x2a641791, 0x2b688e67, 0x2beec29c, 0x7c3347a4, 0x7cb50b5f, 0x7db992a9, 0x7d3fde52, 0x7fa0a145, 0x7f26edbe, 0x7e2a7448, 0x7eac38b3, 0x7b92c69d, 0x7b148a66, 0x7a181390, 0x7a9e5f6b, 0x7801207c, 0x78876c87, 0x798bf571, 0x790db98a, 0x73f6092d, 0x737045d6, 0x727cdc20, 0x72fa90db, 0x7065efcc, 0x70e3a337, 0x71ef3ac1, 0x7169763a, 0x74578814, 0x74d1c4ef, 0x75dd5d19, 0x755b11e2, 0x77c46ef5, 0x7742220e, 0x764ebbf8, 0x76c8f703, 0x633f964d, 0x63b9dab6, 0x62b54340, 0x62330fbb,
+0x60ac70ac, 0x602a3c57, 0x6126a5a1, 0x61a0e95a, 0x649e1774, 0x64185b8f, 0x6514c279, 0x65928e82, 0x670df195, 0x678bbd6e, 0x66872498, 0x66016863, 0x6cfad8c4, 0x6c7c943f, 0x6d700dc9, 0x6df64132, 0x6f693e25, 0x6fef72de, 0x6ee3eb28, 0x6e65a7d3, 0x6b5b59fd, 0x6bdd1506, 0x6ad18cf0, 0x6a57c00b, 0x68c8bf1c, 0x684ef3e7, 0x69426a11, 0x69c426ea, 0x422ae476, 0x42aca88d, 0x43a0317b, 0x43267d80, 0x41b90297, 0x413f4e6c, 0x4033d79a, 0x40b59b61, 0x458b654f, 0x450d29b4, 0x4401b042, 0x4487fcb9, 0x461883ae, 0x469ecf55, 0x479256a3, 0x47141a58, 0x4defaaff, 0x4d69e604, 0x4c657ff2, 0x4ce33309, 0x4e7c4c1e, 0x4efa00e5, 0x4ff69913, 0x4f70d5e8, 0x4a4e2bc6, 0x4ac8673d, 0x4bc4fecb, 0x4b42b230, 0x49ddcd27, 0x495b81dc, 0x4857182a, 0x48d154d1, 0x5d26359f, 0x5da07964, 0x5cace092, 0x5c2aac69, 0x5eb5d37e, 0x5e339f85, 0x5f3f0673, 0x5fb94a88, 0x5a87b4a6, 0x5a01f85d, 0x5b0d61ab, 0x5b8b2d50, 0x59145247, 0x59921ebc, 0x589e874a, 0x5818cbb1, 0x52e37b16, 0x526537ed, 0x5369ae1b, 0x53efe2e0, 0x51709df7, 0x51f6d10c,
+0x50fa48fa, 0x507c0401, 0x5542fa2f, 0x55c4b6d4, 0x54c82f22, 0x544e63d9, 0x56d11cce, 0x56575035, 0x575bc9c3, 0x57dd8538];
+
+function createcrc24(input) {
+  var crc = 0xB704CE;
+  var index = 0;
+
+  while((input.length - index) > 16)  {
+   crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index)) & 0xff];
+   crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index+1)) & 0xff];
+   crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index+2)) & 0xff];
+   crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index+3)) & 0xff];
+   crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index+4)) & 0xff];
+   crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index+5)) & 0xff];
+   crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index+6)) & 0xff];
+   crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index+7)) & 0xff];
+   crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index+8)) & 0xff];
+   crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index+9)) & 0xff];
+   crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index+10)) & 0xff];
+   crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index+11)) & 0xff];
+   crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index+12)) & 0xff];
+   crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index+13)) & 0xff];
+   crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index+14)) & 0xff];
+   crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index+15)) & 0xff];
+   index += 16;
+  }
+
+  for(var j = index; j < input.length; j++) {
+   crc = (crc << 8) ^ crc_table[((crc >> 16) ^ input.charCodeAt(index++)) & 0xff]
+  }
+  return crc & 0xffffff;
 }
+
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -11329,7 +11356,7 @@ function openpgp_type_s2k() {
 			var isp = this.saltValue+passphrase;
 			while (isp.length < this.count)
 				isp += this.saltValue+passphrase; 			
-			if (isp.length < this.count)
+			if (isp.length > this.count)
 				isp = isp.substr(0, this.count);
 			return openpgp_crypto_hashData(this.hashAlgorithm,isp);
 		} else return null;
@@ -11516,6 +11543,7 @@ function openpgp_keyring() {
 		for (var i = 0; i < result.length; i++) {
 			this.publicKeys[this.publicKeys.length] = {armored: armored_text, obj: result[i], keyId: result[i].getKeyId()};
 		}
+		return true;
 	}
 
 	/**
@@ -11523,11 +11551,14 @@ function openpgp_keyring() {
 	 * @param armored_text [String] PRIVATE KEY BLOCK message to read the private key from
 	 * @return [null] nothing
 	 */
-	function importPrivateKey (armored_text) {
+	function importPrivateKey (armored_text, password) {
 		var result = openpgp.read_privateKey(armored_text);
+		if(!result[0].decryptSecretMPIs(password))
+		    return false;
 		for (var i = 0; i < result.length; i++) {
 			this.privateKeys[this.privateKeys.length] = {armored: armored_text, obj: result[i], keyId: result[i].getKeyId()};
 		}
+		return true;
 	}
 
 	this.importPublicKey = importPublicKey;
@@ -11599,7 +11630,7 @@ function openpgp_keyring() {
 var Util = function() {
 	
 	this.hexdump = function(str) {
-	    var r="";
+	    var r=[];
 	    var e=str.length;
 	    var c=0;
 	    var h;
@@ -11607,12 +11638,12 @@ var Util = function() {
 	    while(c<e){
 	        h=str.charCodeAt(c++).toString(16);
 	        while(h.length<2) h="0"+h;
-	        r+=" "+h;
+	        r.push(" "+h);
 	        i++;
 	        if (i % 32 == 0)
-	        	r+="\n           ";
+	        	r.push("\n           ");
 	    }
-	    return r;
+	    return r.join('');
 	};
 	/**
 	 * create hexstring from a binary
@@ -11622,16 +11653,16 @@ var Util = function() {
 	this.hexstrdump = function(str) {
 		if (str == null)
 			return "";
-	    var r="";
+	    var r=[];
 	    var e=str.length;
 	    var c=0;
 	    var h;
 	    while(c<e){
 	        h=str[c++].charCodeAt().toString(16);
 	        while(h.length<2) h="0"+h;
-	        r+=""+h;
+	        r.push(""+h);
 	    }
-	    return r;
+	    return r.join('');
 	};
 	/**
 	 * creating a hex string from an binary array of integers (0..255)
@@ -11639,16 +11670,16 @@ var Util = function() {
 	 * @return [String] hexadecimal representation of the array
 	 */
 	this.hexidump = function(str) {
-	    var r="";
+	    var r=[];
 	    var e=str.length;
 	    var c=0;
 	    var h;
 	    while(c<e){
 	        h=str[c++].toString(16);
 	        while(h.length<2) h="0"+h;
-	        r+=""+h;
+	        r.push(""+h);
 	    }
-	    return r;
+	    return r.join('');
 	};
 	
 	/**
@@ -11671,11 +11702,11 @@ var Util = function() {
 	 * @return [String] string representation of the array
 	 */
 	this.bin2str = function(bin) {
-		var result = "";
+		var result = [];
 		for (var i = 0; i < bin.length; i++) {
-			result += String.fromCharCode(bin[i]);
+			result.push(String.fromCharCode(bin[i]));
 		}
-		return result;
+		return result.join('');
 	};
 	
 	/**
@@ -11703,6 +11734,25 @@ var Util = function() {
 	 */
 	this.print_debug = function(str) {
 		if (openpgp.config.debug) {
+			str = openpgp_encoding_html_encode(str);
+			showMessages("<tt><p style=\"background-color: #ffffff; width: 652px; word-break: break-word; padding: 5px; border-bottom: 1px solid black;\">"+str.replace(/\n/g,"<br>")+"</p></tt>");
+		}
+	};
+	
+	/**
+	 * Helper function to print a debug message. Debug 
+	 * messages are only printed if
+	 * openpgp.config.debug is set to true. The calling
+	 * Javascript context MUST define
+	 * a "showMessages(text)" function. Line feeds ('\n')
+	 * are automatically converted to HTML line feeds '<br/>'
+	 * Different than print_debug because will call hexstrdump iff necessary.
+	 * @param str [String] string of the debug message
+	 * @return [String] an HTML tt entity containing a paragraph with a style attribute where the debug message is HTMLencoded in. 
+	 */
+	this.print_debug_hexstr_dump = function(str,strToHex) {
+		if (openpgp.config.debug) {
+			str = str + this.hexstrdump(strToHex);
 			str = openpgp_encoding_html_encode(str);
 			showMessages("<tt><p style=\"background-color: #ffffff; width: 652px; word-break: break-word; padding: 5px; border-bottom: 1px solid black;\">"+str.replace(/\n/g,"<br>")+"</p></tt>");
 		}

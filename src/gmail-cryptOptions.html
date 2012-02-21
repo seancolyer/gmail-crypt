@@ -39,8 +39,12 @@
 
             <a href="#"><h2 id="insertPrivateKeyTitle">insert private key:</h2></a>
             <form action="javascript:insertPrivateKey();" id="insertPrivateKeyForm">
+            <div>Key</div>
             <textarea id="newPrivateKey" cols=65 rows=10>
             </textarea>
+            <div>Password</div>
+            <input type="password" id="newPrivateKeyPassword">
+            <br/>
             <input type="submit" value="submit"/>
             </form>
             <a href="#"><h2 id="generateKeyPairTitle">generate a new key:</h2></a>
@@ -163,15 +167,18 @@
    
    function insertPrivateKey(){
        var privKey = $('#newPrivateKey').val();
+       var privKeyPassword = $('#newPrivateKeyPassword').val();
        try{
-           openpgp.keyring.importPrivateKey(privKey);
-           openpgp.keyring.store();
-           parsePrivateKeys();
-           return true;
+           if(openpgp.keyring.importPrivateKey(privKey, privKeyPassword)){
+            openpgp.keyring.store();
+            parsePrivateKeys();
+            return true;
+           }
        }
        catch(e){
        }
-       return false;
+        gCryptUtil.notify('Sorry, I can\'t read this key.');
+        return false;
    }
     
    function insertPublicKey(){

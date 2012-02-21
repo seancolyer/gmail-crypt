@@ -83,6 +83,7 @@ function decrypt(event){
                     }
     		    }
             }
+        gCryptUtil.notify('I can\'t decrypt this.');
         });
     }
 
