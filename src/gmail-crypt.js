@@ -16,13 +16,35 @@ openpgpLog += str;
 }
 
 function encrypt(){
-	var form = $('#canvas_frame').contents().find('form');
+    debugger;
+    var form = $('#canvas_frame').contents().find('form');
+    form.find('.alert-error').hide();
     var to = gCryptUtil.parseUser(form.find('textarea[name="to"]').val()).userEmail;
-	var contents = form.find('iframe[class="Am Al editable"]')[0].contentDocument.body;
+    var contents = form.find('iframe[class="Am Al editable"]')[0].contentDocument.body;
+    chrome.extension.sendRequest({method: "getPublicKey",email:to}, function(response){
+        debugger;
+        var pubKey = openpgp.read_publicKey(response[0].armored);
+        if(response.length == 0){
+                gCryptUtil.notify('No keys found for this user.');
+                return;
+        }
+        contents.innerText = openpgp.write_encrypted_message(pubKey,contents.innerText);
+        });
+}
+
+function encryptAndSign(){
+    var form = $('#canvas_frame').contents().find('form');
+    form.find('.alert-error').hide();
+    var contents = form.find('iframe[class="Am Al editable"]')[0].contentDocument.body;
 	var privKey;
-	//TODO: make using a signature optional.
     chrome.extension.sendRequest({method: "getPrivateKeys"}, function(response){
         privKey = openpgp.read_privateKey(response[0].armored)[0];
+        if(!privKey.decryptSecretMPIs()){
+            var password = $('#canvas_frame').contents().find('#gCryptPassword').val();
+            if(!privKey.decryptSecretMPIs(password))
+                form.find('#gCryptAlertPassword').show();
+        }
+        var to = gCryptUtil.parseUser(form.find('textarea[name="to"]').val()).userEmail;
         chrome.extension.sendRequest({method: "getPublicKey",email:to}, function(response){
             debugger;
             var pubKey = openpgp.read_publicKey(response[0].armored);
@@ -34,11 +56,27 @@ function encrypt(){
             });
 
         });
+}
+
+function sign(){
+    var form = $('#canvas_frame').contents().find('form');
+    form.find('.alert-error').hide();
+    var contents = form.find('iframe[class="Am Al editable"]')[0].contentDocument.body;
+	var privKey;
+    chrome.extension.sendRequest({method: "getPrivateKeys"}, function(response){
+        debugger;
+        privKey = openpgp.read_privateKey(response[0].armored)[0];
+        if(!privKey.decryptSecretMPIs()){
+            var password = $('#canvas_frame').contents().find('#gCryptPassword').val();
+            if(!privKey.decryptSecretMPIs(password))
+                form.find('#gCryptAlertPassword').show();
+        }
+        contents.innerText = openpgp.write_signed_message(privKey,contents.innerText);
+        });
 
 }
 
-function decrypt(event){
-    var element;
+function getMessage(){
     var msg;
     //we need to use regex here because gmail will automatically form \n into <br> or <wbr>, strip these out
     //I'm not entirely happy with these replace statements, perhaps there can be a different approach
@@ -61,11 +99,24 @@ function decrypt(event){
         gCryptUtil.notify('No message found');
         return;
     }
-    msg = msg[0];
+    return [element, msg[0]];
+
+}
+
+function decrypt(event){
+    $('#canvas_frame').contents().find('.alert-error').hide();
+    var setup = getMessage();
+    var element = setup[0];
+    var msg = setup[1];
     chrome.extension.sendRequest({method: "getPrivateKeys"}, function(response){
         for(var r = 0; r<response.length;r++){
             debugger;
             var key = openpgp.read_privateKey(response[r].armored)[0];
+            if(!key.decryptSecretMPIs()){
+                var password = $('#canvas_frame').contents().find('#gCryptPassword').val();
+                if(!key.decryptSecretMPIs(password))
+                    $('#canvas_frame').contents().find('#gCryptAlertPassword').show();
+            }
             var material = {key: key , keymaterial: key.privateKeyPacket};
             var sessionKey = msg.sessionKeys[0];
             var text = msg.decrypt(material, sessionKey);
@@ -87,6 +138,24 @@ function decrypt(event){
         });
     }
 
+//TODO: this has not yet been completed in openpgp.js
+function verifySignature(){
+    var setup = getMessage();
+    var msg = setup[1];
+    debugger;
+    var form = $('#canvas_frame').contents().find('form');
+    var to = gCryptUtil.parseUser(form.find('textarea[name="to"]').val()).userEmail;
+    var contents = form.find('iframe[class="Am Al editable"]')[0].contentDocument.body;
+    //TODO: this should be updated to only query for certain public keys
+    chrome.extension.sendRequest({method: "getPublicKeys"}, function(response){
+        debugger;
+        for(var r = 0; r < response.length; r++){
+            var pubKey = openpgp.read_publicKey(response[r].armored);
+            //openpgp.verifySignature();
+            }
+        });
+    }
+
 function composeIntercept(ev) {
     if( $('#canvas_frame').contents().find('html[class="cQ"]').length > 0)
         gmailVersion = 1;
@@ -98,8 +167,13 @@ function composeIntercept(ev) {
     var menubar = form.find('td[class="fA"]');
 	if(menubar.length>0){
         if(menubar.find('#gCryptEncrypt').length == 0){
-            menubar.append('<span id="gCryptEncrypt"><a href="#"><img src="'+chrome.extension.getURL("images/encryptIcon.png")+'"/>encrypt me</a></span>');
-            menubar[0].lastChild.addEventListener("click",encrypt,false);
+            menubar.append('<span id="gCryptEncrypt" class="btn-group"><a class="btn" href="#" id="encryptAndSign1"><img src="'+chrome.extension.getURL("images/encryptIcon.png")+'" width=13 height=13/> Encrypt</a><a class="btn dropdown-toggle" data-toggle="dropdown" href="#"><span class="caret"></span></a><ul class="dropdown-menu"><li id="encryptAndSign2"><a href="#">Encrypt (sign)</a></li><li id="encrypt"><a href="#">Encrypt (don\'t sign)</a></li><li id="sign"><a href="#">Sign only</a></li></ul></span><form class="form-inline"><input type="password" class="input-small" placeholder="password" id="gCryptPassword"></form>');
+            menubar.find('#encryptAndSign1').click(encryptAndSign);
+            menubar.find('#encryptAndSign2').click(encryptAndSign);
+            menubar.find('#encrypt').click(encrypt);
+            menubar.find('#sign').click(sign);
+            form.find('.eJ').append('<div class="alert alert-error" id="gCryptAlertPassword">gmail-crypt was unable to read your key. Is your password correct?</div>');
+            form.find('#gCryptAlertPassword').hide();
         }
 	}
 	
@@ -113,8 +187,13 @@ function composeIntercept(ev) {
     if(viewTitleBar.length > 0){
         viewTitleBar.each(function(v){
             if( $(this).find('#gCryptDecrypt').length == 0){
-	            $(this).prepend('<span id="gCryptDecrypt"><a href="#"><img src="'+chrome.extension.getURL("images/decryptIcon.png")+'"/>decrypt me</a></span>');
-                $(this).find('#gCryptDecrypt').click(decrypt);
+	            $(this).prepend('<span id="gCryptDecrypt"><a class="btn" href="#" id="decrypt"><img src="'+chrome.extension.getURL("images/decryptIcon.png")+'" width=13 height=13/ >Decrypt</a></span>');
+                $(this).find('#decrypt').click(decrypt);
+                $(this).append('<form class="form-inline"><input type="password" class="input-small" placeholder="password" id="gCryptPassword"></form>');
+        	    $('#canvas_frame').contents().find('div[class="gE iv gt"]').append('<div class="alert alert-error" id="gCryptAlertPassword">gmail-crypt was unable to read your key. Is your password correct?</div>');
+        	    $('#canvas_frame').contents().find('#gCryptAlertPassword').hide();
+                //TODO: <a class="btn" href="#" id="verifySignature">Check Signature</a>
+                //$(this).find('#verifySignature').click(verifySignature);
             }
         });
     }

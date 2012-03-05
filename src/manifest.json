@@ -13,10 +13,11 @@
 ],
 "background_page": "gmail-cryptBackground.html",
 "content_scripts": [{
-"matches":["https://mail.google.com/*","http://mail.google.com/*"],
-"js": ["lib/jquery-1.6.2.min.js","lib/openpgp.js","gmail-cryptUtil.js","gmail-crypt.js"],
-"run_at":"document_idle",
-"all_frames":true
+    "matches":["https://mail.google.com/*","http://mail.google.com/*"],
+    "css": ["bootstrap.btn.css"],
+    "js": ["lib/jquery-1.7.1.min.js", "lib/bootstrap.min.js","lib/openpgp.js","gmail-cryptUtil.js","gmail-crypt.js"],
+    "run_at":"document_idle",
+    "all_frames":true
 }],
 "homepage_url":"http://github.com/seancolyer/gmail-crypt",
 "update_url":"http://raw.github.com/seancolyer/gmail-crypt/master/build/updates.xml",
