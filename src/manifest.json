@@ -1,9 +1,10 @@
 {
-"name":"gmail-crypt extension",
+"name":"Mymail-Crypt for Gmail™",
 "version":"4",
-"description":"Extension implementing GPG into Webmail (Gmail) using JS and the jsOpenPGP library",
+"description":"Extension implementing GPG into Webmail (Gmail™) using the OpenPGP.js library. This project is no way affiliated with Google™.",
 "icons": {
-"128":"gmail-crypt128.png"
+"128":"gmail-crypt128.png",
+"96":"gmail-crypt96.png"
 },
 "permissions":[
 "https://mail.google.com/*",
@@ -19,7 +20,6 @@
     "run_at":"document_idle",
     "all_frames":true
 }],
-"homepage_url":"http://github.com/seancolyer/gmail-crypt",
-"update_url":"http://raw.github.com/seancolyer/gmail-crypt/master/build/updates.xml",
+"homepage_url":"http://prometheusx.net",
 "options_page":"gmail-cryptOptions.html"
 }

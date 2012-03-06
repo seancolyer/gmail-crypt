@@ -1,0 +1,15 @@
+Mymail-Crypt for Gmail™ aims to make OpenPGP encryption available and used by anyone.
+
+This project is in no way affiliated with Google™.
+
+To get started
+*Install this Extension
+*Tools -> Extensions -> under Mymail-Crypt click the options page
+*Read over the help, import or generate a key as is necessary
+*Give your public key to your friends, import theirs into the options page
+*In Gmail™ simply click encrypt to encrypt a mail you're writing
+*In Gmail™ simply click the decrypt to read a mail from a friend.
+
+Mymail-Crypt acts as a layer on top of your Gmail™ experience that allows you to seamlessly encrypt and decrypt messages. For more information please visit http://prometheusx.net. 
+
+The project is powered by OpenPGP.js. OpenPGP.js aims to fully implement the RFC 4880 OpenPGP standard. This project is still a work in progress, but supports a variety of key importation/generation abilities to encrypt and decrypt messages. Please see http://openpgpjs.org/ for details on this project. 
