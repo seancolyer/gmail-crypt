@@ -115,7 +115,7 @@ function decrypt(event){
             if(!key.decryptSecretMPIs()){
                 var password = $('#canvas_frame').contents().find('#gCryptPassword').val();
                 if(!key.decryptSecretMPIs(password))
-                    $('#canvas_frame').contents().find('#gCryptAlertPassword').show();
+               	    $('#canvas_frame').contents().find('div[class="gE iv gt"]').append('<div class="alert alert-error" id="gCryptAlertPassword">gmail-crypt was unable to read your key. Is your password correct?</div>');
             }
             var material = {key: key , keymaterial: key.privateKeyPacket};
             var sessionKey = msg.sessionKeys[0];
@@ -173,7 +173,6 @@ function composeIntercept(ev) {
             menubar.find('#encrypt').click(encrypt);
             menubar.find('#sign').click(sign);
             form.find('.eJ').append('<div class="alert alert-error" id="gCryptAlertPassword">gmail-crypt was unable to read your key. Is your password correct?</div>');
-            form.find('#gCryptAlertPassword').hide();
         }
 	}
 	
@@ -190,13 +189,14 @@ function composeIntercept(ev) {
 	            $(this).prepend('<span id="gCryptDecrypt"><a class="btn" href="#" id="decrypt"><img src="'+chrome.extension.getURL("images/decryptIcon.png")+'" width=13 height=13/ >Decrypt</a></span>');
                 $(this).find('#decrypt').click(decrypt);
                 $(this).append('<form class="form-inline"><input type="password" class="input-small" placeholder="password" id="gCryptPassword"></form>');
-        	    $('#canvas_frame').contents().find('div[class="gE iv gt"]').append('<div class="alert alert-error" id="gCryptAlertPassword">gmail-crypt was unable to read your key. Is your password correct?</div>');
-        	    $('#canvas_frame').contents().find('#gCryptAlertPassword').hide();
                 //TODO: <a class="btn" href="#" id="verifySignature">Check Signature</a>
                 //$(this).find('#verifySignature').click(verifySignature);
+                
+                //TODO issues with inserting alert here. I think it has to do with subtreemodified not firing.
             }
         });
     }
+    $('#canvas_frame').contents().find('#gCryptAlertPassword').hide();
 }
 
 function onLoad() {

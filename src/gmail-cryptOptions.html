@@ -13,18 +13,43 @@
 </head>
 
 <body>
-<div class="container">
-    <div id="title">
-        <h1>gmail-crypt options</h1>
-        <div id="navbar">
-        <a href="#privateKeySpan" class="linkLocal">my keys</a> |
-        <a href="#publicKeySpan" class="linkLocal">friends' keys</a> |
-        <a href="#externalSpan" class="linkLocal">backup</a> |
-        <a href="#helpSpan" class="linkLocal">help</a>
+<div class="navbar navbar-fixed-top">
+    <div class="navbar-inner">
+        <div class="container">
+            <div class="nav-collapse">
+                <ul class="nav" id="navbar">
+                <li><a href="#homeSpan" class="linkLocal">home</a></li>
+                <li><a href="#privateKeySpan" class="linkLocal">my keys</a></li>
+                <li><a href="#publicKeySpan" class="linkLocal">friends' keys</a></li>
+                <li><a href="#helpSpan" class="linkLocal">help</a></li>
+                </ul>
+            </div>
         </div>
     </div>
+</div>
+<div class="container">
+        <h1>gmail-crypt options</h1>
+    <header class="jumbotron subheader">
+        <div class="subnav subnav-fixed">
+        </div>
+    </header>
     
     <div id="mainColumn">
+        <span id="homeSpan">
+            <h2>Home</h2>
+            <p>
+                Welcome to gmail-crypt!
+                <ul>
+                <li>Use the "my keys" section to <strong>generate</strong> a new OpenPGP key, <strong>import</strong> an existing key, or <strong>remove</strong> a key from the system. This manages private keys.</li>
+                <li>Use the "friends' keys" section to <strong>import</strong> or <strong>remove</strong> keys from your friends. This manages public keys</li>
+                <li>Use the "help" section for <strong>troubleshooting</strong>, and <strong>background information</strong>.</li>
+                </ul>
+            </p>
+            <p>
+            <strong>Before using this extension please read the "help" page and be aware of the security concerns. Also please be aware that the license of this software clearly states this comes WITHOUT ANY WARRANTY.</strong>
+            </p>
+        </span>
+
         <span id="privateKeySpan">
             <h2>my private keys:</h2>
             <table id="privateKeyTable" class="table table-condensed">
@@ -45,8 +70,7 @@
             <a href="#"><h2 id="insertPrivateKeyTitle">insert private key:</h2></a>
             <form action="javascript:insertPrivateKey();" id="insertPrivateKeyForm" class="well">
             <label>Key</label>
-            <textarea id="newPrivateKey" class="input-xxlarge" rows=10>
-            </textarea>
+            <textarea id="newPrivateKey" class="input-xxlarge" rows=10></textarea>
             <label>Password</label>
             <input class="input-xxlarge" type="password" id="newPrivateKeyPassword">
             <br/>
@@ -91,18 +115,11 @@
 
             <a href="#"><h2 id="insertPublicKeyTitle">insert public key:</h2></a>
             <form action="javascript:insertPublicKey();" id="insertPublicKeyForm" class="well">
-            <textarea id="newPublicKey" class="input-xxlarge" rows=10>
-            </textarea>
+            <textarea id="newPublicKey" class="input-xxlarge" rows=10></textarea>
             <div class="form-actions">
                 <button type="submit" value="submit" class="btn btn-primary">submit</button>
             </div>
             </form>
-        </span>
-        <span id="externalSpan">
-            <h2>External Connections</h2>
-            <p>
-                We hope to soon offer the option of easily exporting key information to other services.
-            </p>
         </span>
         <span id="helpSpan">
             <h2>Help!</h2>
@@ -122,10 +139,11 @@
             <p>
             This project aims to bring OpenPGP security to Gmail. However, there are some special considerations.
                 <ul>
-                <li>DO NOT use this on a shared computer.</li>
+                <li>DO NOT use this on a shared computer. This extension is not (yet) multi-user capable.</li>
                 <li>This release still allows drafts to be uploaded to Gmail servers. Unencrypted drafts could be stored on Gmail servers.</li>
                 <li>Storing private keys in browser. The extension will run under it's own domain but it might be possible for malicious entities to access it.</li>
-                <li>Limited randomness. JavaScript doesn't provide great random functions, this implementation uses mouse movement for randomness.</li>
+                <li>Password input into the DOM. Currently input for passwords is done directly into the DOM. This means it would be conceivable for gmail to acquire this password. It is important to note that private keys are stored in the context of the extension and not gmail's context.</li>
+                <li>Cryptographically Secure Pseudo Random Number Generator. OpenPGP.js uses window.crypto.* for random number generation, the quality of this is browser dependent. By definition this should be a good source, but is an externality to consider.</li>
                 </ul>
             </p>
             <h3>Troubleshooting</h3>
@@ -136,9 +154,13 @@
                 <li>If a message is unable to be decoded, it could be from weird formatting from gmail, if you have the ability, please send the html code of the text you are attempting to decrypt (F12->Elements->Magnifying Glass)</li>
                 </ul>
             </p>
+            <p>
+            <h3>OpenPGP.js</h3>
+            The OpenPGP implementation is <a href="https://github.com/openpgpjs/openpgpjs">OpenPGP.js</a>, it is an open source project based off of the initial work for <a href="http://gpg4browsers.recurity.com/">GPG4Browsers</a>. The project aims to be fully OpenPGP compliant.
+            </p>
             <h3>Community/Licensing</h3>
             <p>
-                Yes, your contributions would be welcome! Please see the attached LICENSE file for full License information. The jsOpenPGP library that powers this extension is derived from the OpenPGP work from <a href ="http://www.hanewin.net/encrypt/">Herbert Hanewinkel</a>, however the RSA library has been switched out for a modified version of the BigInteger/RSA libraries from <a href="http://www-cs-students.stanford.edu/~tjw/jsbn/">Tom Wu</a>. Some of the conversion methods were derived from work by <a href="http://mywebserve.com">Bill Adams</a> for the Qooxdoo Crypto library.<br/>                
+                Yes, your contributions would be welcome! Please see the attached LICENSE file for full License information. Please visit our <a href="https://github.com/seancolyer/gmail-crypt">project home page</a> if you're interested.
             </p>
             <h3>Related Works</h3>
             <p>
@@ -252,8 +274,8 @@
    function linkLocalFunction(event){
    $('#publicKeySpan').hide();
    $('#privateKeySpan').hide();
-   $('#externalSpan').hide();
    $('#helpSpan').hide();
+   $('#homeSpan').hide();
    $(event.currentTarget.hash).show();
    }
    
@@ -263,7 +285,7 @@
       parsePublicKeys();
       $('#privateKeySpan').hide();
       $('#publicKeySpan').hide();
-      $('#externalSpan').hide();
+      $('#helpSpan').hide();
       $('.linkLocal').click(linkLocalFunction);
       $('#generateKeyPairForm').hide();
       $('#generateKeyPairTitle').click(function() {

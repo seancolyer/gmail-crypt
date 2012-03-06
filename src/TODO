@@ -5,15 +5,6 @@ Figure out why the encrypt option isn't always populating. It seems like the DOM
 Make Drafts stop uploading to gmail.
     Do I overload/intercept functions from being loaded, or do I intercept XHR requests?
 
-Signing Key when encrypting
-
-Add the ability to create keys within the extension
-
-For private key insertion: Key ID values are calculated based on a hash of the public key information. Without the public key how do we know the ID of a key ?(see RFC 4880 12.2)
-    Possible solution: Assume that the signer of a private key is using the ID for that key.  I think this might break the OpenPGP
-    Possible solution: Correlate Public Keys with Private Keys
-    Possible solution: Do not use key id in decryption
-    
 Send email to multiple recipients
 
 Provide the ability to encrypt/decrypt blocks of text on random pages by right clicking
