@@ -34,7 +34,7 @@ var gCryptUtil = {
     },
 
     notify: function(msg){
-        alert(msg);
+        //alert(msg);
     }
 
 }
