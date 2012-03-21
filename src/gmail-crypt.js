@@ -46,7 +46,6 @@ function writeContents(contents, message){
 }
 
 function encryptAndSign(){
-    debugger;
     var form = $('#canvas_frame').contents().find('form');
     form.find('.alert-error').hide();
     var contents = getContents(form);
@@ -64,7 +63,6 @@ function encryptAndSign(){
             return;
         }
         chrome.extension.sendRequest({method: "getPublicKey",email:to}, function(response){
-            debugger;
             if(response.length == 0){
                 form.find('#gCryptAlertEncryptNoUser').show();
                 return;
@@ -91,7 +89,6 @@ function encrypt(){
             form.find('#gCryptAlertEncryptNoUser').show();
             return;
         }
-        debugger;
         var pubKey = openpgp.read_publicKey(response[0].armored);
         var ciphertext = openpgp.write_encrypted_message(pubKey,contents.msg);
         writeContents(contents, ciphertext);
@@ -104,7 +101,6 @@ function sign(){
     var contents = getContents(form);
 	var privKey;
     chrome.extension.sendRequest({method: "getPrivateKeys"}, function(response){
-        debugger;
         privKey = openpgp.read_privateKey(response[0].armored)[0];
         if(!privKey.decryptSecretMPIs()){
             var password = $('#canvas_frame').contents().find('#gCryptPasswordEncrypt').val();
@@ -144,7 +140,6 @@ function getMessage(objectContext){
 }
 
 function decrypt(event){
-    debugger;
     var password = $(this).parent().parent().find('form[class="form-inline"] input[type="password"]').val();
     $('#canvas_frame').contents().find('.alert-error').hide();
     var objectContext = this;
@@ -153,7 +148,6 @@ function decrypt(event){
     var msg = setup[1];
     chrome.extension.sendRequest({method: "getPrivateKeys"}, function(response){
         for(var r = 0; r<response.length;r++){
-            debugger;
             var key = openpgp.read_privateKey(response[r].armored)[0];
             if(!key.decryptSecretMPIs()){
                 //var password = $('#canvas_frame').contents().find('#gCryptPasswordDecrypt').val();
@@ -194,13 +188,11 @@ function decrypt(event){
 function verifySignature(){
     var setup = getMessage(this);
     var msg = setup[1];
-    debugger;
     var form = $('#canvas_frame').contents().find('form');
     var to = gCryptUtil.parseUser(form.find('textarea[name="to"]').val()).userEmail;
     var contents = form.find('iframe[class="Am Al editable"]')[0].contentDocument.body;
     //TODO: this should be updated to only query for certain public keys
     chrome.extension.sendRequest({method: "getPublicKeys"}, function(response){
-        debugger;
         for(var r = 0; r < response.length; r++){
             var pubKey = openpgp.read_publicKey(response[r].armored);
             //openpgp.verifySignature();
