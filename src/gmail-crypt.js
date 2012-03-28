@@ -1,6 +1,6 @@
 /* This is the general class for gmail-crypt that runs within gmail context. 
  * 
- * Copyright 2011 Sean Colyer, <sean @ colyer . name>
+ * Copyright 2011,2012 Sean Colyer, <sean @ colyer . name>
  * This program is licensed under the GNU General Public License Version 2. 
  * See included "LICENSE" file for details.
  */
@@ -45,6 +45,17 @@ function writeContents(contents, message){
 
 }
 
+function getRecipients(form){
+    var to = form.find('textarea[name="to"]').val().split(',').concat(form.find('textarea[name="cc"]').val().split(','));
+    var recipients = [];
+    for(var recipient in to){
+        if(to[recipient].length > 0)
+            recipients.push(gCryptUtil.parseUser(to[recipient]).userEmail);
+        }
+    return recipients;
+        
+}
+
 function encryptAndSign(){
     var form = $('#canvas_frame').contents().find('form');
     form.find('.alert-error').hide();
@@ -57,42 +68,48 @@ function encryptAndSign(){
             if(!privKey.decryptSecretMPIs(password))
                 form.find('#gCryptAlertPassword').show();
         }
-        var to = gCryptUtil.parseUser(form.find('textarea[name="to"]').val()).userEmail;
-        if(to == ''){
+        var recipients = getRecipients(form);
+        if(recipients.length == 0){
             form.find('#gCryptAlertEncryptNoUser').show();
-            return;
+            return;        
         }
-        chrome.extension.sendRequest({method: "getPublicKey",email:to}, function(response){
-            if(response.length == 0){
-                form.find('#gCryptAlertEncryptNoUser').show();
-                return;
+        chrome.extension.sendRequest({method: "getPublicKeys",emails:recipients}, function(response){
+            var publicKeys = [];
+            for(var recipient in response){
+                if(response[recipient].length == 0)
+                    form.find('#gCryptAlertEncryptNoUser').show();
+                else{
+                    publicKeys.push(openpgp.read_publicKey(response[recipient])[0]);
+                }
             }
-            var pubKey = openpgp.read_publicKey(response[0].armored);
-            var ciphertext = openpgp.write_signed_and_encrypted_message(privKey,pubKey,contents.msg);
+            var ciphertext = openpgp.write_signed_and_encrypted_message(privKey,publicKeys,contents.msg);
             writeContents(contents, ciphertext);
             });
-
         });
 }
 
 function encrypt(){
     var form = $('#canvas_frame').contents().find('form');
     form.find('.alert-error').hide();
-    var to = gCryptUtil.parseUser(form.find('textarea[name="to"]').val()).userEmail;
-    if(to == ''){
-        form.find('#gCryptAlertEncryptNoUser').show();
-        return;
-    }
     var contents = getContents(form);
-    chrome.extension.sendRequest({method: "getPublicKey",email:to}, function(response){
-        if(response.length == 0){
-            form.find('#gCryptAlertEncryptNoUser').show();
-            return;
+    
+    var recipients = getRecipients(form);
+    if(recipients.length == 0){
+        form.find('#gCryptAlertEncryptNoUser').show();
+        return;        
+    }
+    chrome.extension.sendRequest({method: "getPublicKeys",emails:recipients}, function(response){
+        var publicKeys = [];
+        for(var recipient in response){
+            if(response[recipient].length == 0)
+                form.find('#gCryptAlertEncryptNoUser').show();
+            else{
+                publicKeys.push(openpgp.read_publicKey(response[recipient])[0]);
+            }
         }
-        var pubKey = openpgp.read_publicKey(response[0].armored);
-        var ciphertext = openpgp.write_encrypted_message(pubKey,contents.msg);
+        var ciphertext = openpgp.write_encrypted_message(publicKeys,contents.msg);
         writeContents(contents, ciphertext);
-    });
+        });
 }
 
 function sign(){
@@ -150,35 +167,37 @@ function decrypt(event){
         for(var r = 0; r<response.length;r++){
             var key = openpgp.read_privateKey(response[r].armored)[0];
             if(!key.decryptSecretMPIs()){
-                //var password = $('#canvas_frame').contents().find('#gCryptPasswordDecrypt').val();
                 if(!key.decryptSecretMPIs(password))
                	    $(objectContext).parents('div[class="gE iv gt"]').append('<div class="alert alert-error" id="gCryptAlertPassword">Mymail-Crypt For Gmail was unable to read your key. Is your password correct?</div>');
             }
             var material = {key: key , keymaterial: key.privateKeyPacket};
-            var sessionKey = msg.sessionKeys[0];
-            try{
-                var text = msg.decrypt(material, sessionKey);
-                if(text != ''){
-                    element.html(text.replace(/\n/g,'<br>'));
-                    return;
-                    }
-                }
-            catch(e){ //This means that the initial key is not the one we need
-            }
-			for (var j = 0; j < key.subKeys.length; j++) {
-				keymat = { key: priv_key[0], keymaterial: priv_key[0].subKeys[j]};
-				sesskey = msg[0].sessionKeys[i];
-				try{
-                    text = msg.decrypt(material, sessionKey);
+            for(var sessionKeyIterator in msg.sessionKeys){
+                var sessionKey = msg.sessionKeys[sessionKeyIterator];
+                try{
+                    var text = msg.decrypt(material, sessionKey);
+                    
                     if(text != ''){
                         element.html(text.replace(/\n/g,'<br>'));
                         return;
                         }
-        		}
-    		    catch(e){
-    		    //Current key is not the correct key
-    		    }
-    		    }
+                    }
+                catch(e){ //This means that the initial key is not the one we need
+                }
+			    for (var j = 0; j < key.subKeys.length; j++) {
+				    keymat = { key: priv_key[0], keymaterial: priv_key[0].subKeys[j]};
+				    sesskey = msg[0].sessionKeys[i];
+				    try{
+                        text = msg.decrypt(material, sessionKey);
+                        if(text != ''){
+                            element.html(text.replace(/\n/g,'<br>'));
+                            return;
+                            }
+            		}
+        		    catch(e){
+        		    //Current key is not the correct key
+        		    }
+        		    }
+                }
             }
         $(objectContext).parents('div[class="gE iv gt"]').append('<div class="alert alert-error" id="gCryptAlertDecrypt">Mymail-Crypt for Gmail was unable to decrypt this message. </div>');
         });
@@ -192,7 +211,7 @@ function verifySignature(){
     var to = gCryptUtil.parseUser(form.find('textarea[name="to"]').val()).userEmail;
     var contents = form.find('iframe[class="Am Al editable"]')[0].contentDocument.body;
     //TODO: this should be updated to only query for certain public keys
-    chrome.extension.sendRequest({method: "getPublicKeys"}, function(response){
+    chrome.extension.sendRequest({method: "getAllPublicKeys"}, function(response){
         for(var r = 0; r < response.length; r++){
             var pubKey = openpgp.read_publicKey(response[r].armored);
             //openpgp.verifySignature();

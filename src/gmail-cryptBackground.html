@@ -13,8 +13,21 @@
 //TODO how do we want to handle errors?
 chrome.extension.onRequest.addListener(function(request,sender,sendResponse){
     openpgp.keyring.init(); //We need to handle changes that might have been made.
-    if(request.method == "getPublicKeys"){
+    if(request.method == "getAllPublicKeys"){
         sendResponse(openpgp.keyring.publicKeys);
+    }
+    if(request.method == "getPublicKeys"){
+        debugger;
+        var keys = {};
+        for(var email in request.emails){
+            try{
+            keys[request.emails[email]] = openpgp.keyring.getPublicKeyForAddress(request.emails[email])[0].armored;
+            }
+            catch(e){
+            
+            }
+        }
+        sendResponse(keys);
     }
     if(request.method == "getPublicKey"){
         sendResponse(openpgp.keyring.getPublicKeyForAddress(request.email));
