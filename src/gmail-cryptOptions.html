@@ -201,6 +201,7 @@
     }
    
    function generateKeyPair(){
+        $('.alert').hide();
         var form = $('#generateKeyPairForm');
    		var keyPair = openpgp.generate_key_pair(1,parseInt(form.find('#numBits').val()), form.find('#name').val() + ' <' + form.find('#email').val() + '>', form.find('#password').val());
    		openpgp.keyring.importPrivateKey(keyPair.privateKeyArmored, form.find('#password').val());
@@ -211,6 +212,7 @@
    }
    
    function insertPrivateKey(){
+        $('.alert').hide();
        var privKey = $('#newPrivateKey').val();
        var privKeyPassword = $('#newPrivateKeyPassword').val();
        try{
@@ -219,14 +221,18 @@
             parsePrivateKeys();
             return true;
            }
+           else{
+            $('#insertPrivateKeyForm').prepend('<div class="alert alert-error" id="gCryptAlertPassword">Mymail-Crypt for Gmail was unable to read your key. Is your password correct?</div>');
+           }
        }
        catch(e){
        }
-        gCryptUtil.notify('Sorry, I can\'t read this key.');
+        $('#insertPrivateKeyForm').prepend('<div class="alert alert-error" id="gCryptAlertPassword">Mymail-Crypt for Gmail was unable to read your key. It would be great if you could contact us so we can help figure out what went wrong.</div>');
         return false;
    }
     
    function insertPublicKey(){
+        $('.alert').hide();
         var pubKey = $('#newPublicKey').val();
         try{
             openpgp.keyring.importPublicKey(pubKey);
@@ -236,6 +242,7 @@
         }
         catch(e){
         }
+        $('#insertPublicKeyForm').prepend('<div class="alert alert-error" id="gCryptAlertPassword">Mymail-Crypt for Gmail was unable to read this key. It would be great if you could contact us so we can help figure out what went wrong.</div>');
         return false;
    }
    
@@ -275,6 +282,7 @@
    }
 
    function linkLocalFunction(event){
+   $('.alert').hide();
    $('#publicKeySpan').hide();
    $('#privateKeySpan').hide();
    $('#helpSpan').hide();

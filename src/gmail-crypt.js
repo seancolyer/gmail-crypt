@@ -58,7 +58,7 @@ function getRecipients(form){
 
 function encryptAndSign(){
     var form = $('#canvas_frame').contents().find('form');
-    form.find('.alert-error').hide();
+    form.find('.alert').hide();
     var contents = getContents(form);
 	var privKey;
     chrome.extension.sendRequest({method: "getPrivateKeys"}, function(response){
@@ -90,7 +90,7 @@ function encryptAndSign(){
 
 function encrypt(){
     var form = $('#canvas_frame').contents().find('form');
-    form.find('.alert-error').hide();
+    form.find('.alert').hide();
     var contents = getContents(form);
     
     var recipients = getRecipients(form);
@@ -114,7 +114,7 @@ function encrypt(){
 
 function sign(){
     var form = $('#canvas_frame').contents().find('form');
-    form.find('.alert-error').hide();
+    form.find('.alert').hide();
     var contents = getContents(form);
 	var privKey;
     chrome.extension.sendRequest({method: "getPrivateKeys"}, function(response){
@@ -156,51 +156,63 @@ function getMessage(objectContext){
 
 }
 
+function decryptHelper(msg, material, sessionKey, objectContext, publicKeys){
+    try{
+        var decryptResult = msg.decryptAndVerifySignature(material, sessionKey, publicKeys);
+        if(decryptResult.text != ''){
+            if(decryptResult.validSignatures.indexOf(false)>=0 || decryptResult.validSignatures.length == 0){
+                $(objectContext).parents('div[class="gE iv gt"]').append('<div class="alert" id="gCryptUnableVerifySignature">Mymail-Crypt For Gmail was unable to verify this message.</div>');
+            }
+            else{
+                $(objectContext).parents('div[class="gE iv gt"]').append('<div class="alert alert-success" id="gCryptUnableVerifySignature">Mymail-Crypt For Gmail was able to verify this message.</div>');                            
+            }
+            element.html(decryptResult.text.replace(/\n/g,'<br>'));
+            return true;
+            }
+        }
+    catch(e){ //This means that the initial key is not the one we need
+    }
+    return false;
+}
+
 function decrypt(event){
     var password = $(this).parent().parent().find('form[class="form-inline"] input[type="password"]').val();
-    $('#canvas_frame').contents().find('.alert-error').hide();
+    $('#canvas_frame').contents().find('.alert').hide();
     var objectContext = this;
     var setup = getMessage(objectContext);
     var element = setup[0];
     var msg = setup[1];
-    chrome.extension.sendRequest({method: "getPrivateKeys"}, function(response){
-        for(var r = 0; r<response.length;r++){
-            var key = openpgp.read_privateKey(response[r].armored)[0];
-            if(!key.decryptSecretMPIs()){
-                if(!key.decryptSecretMPIs(password))
-               	    $(objectContext).parents('div[class="gE iv gt"]').append('<div class="alert alert-error" id="gCryptAlertPassword">Mymail-Crypt For Gmail was unable to read your key. Is your password correct?</div>');
-            }
-            var material = {key: key , keymaterial: key.privateKeyPacket};
-            for(var sessionKeyIterator in msg.sessionKeys){
-                var sessionKey = msg.sessionKeys[sessionKeyIterator];
-                try{
-                    var text = msg.decrypt(material, sessionKey);
-                    
-                    if(text != ''){
-                        element.html(text.replace(/\n/g,'<br>'));
+    var senderEmail = $(objectContext).parents('div[class="gE iv gt"]').find('span [email]').attr('email');
+    chrome.extension.sendRequest({method: "getPublicKey",email:senderEmail}, function(response){
+        var publicKeys = response;
+        //We have to re-read the armored public key here, I think Chrome walled garden is changing the response object, forcing us to do this.
+        for(var r in response){
+            publicKeys[r].obj = openpgp.read_publicKey(response[r].armored)[0];
+        }
+        chrome.extension.sendRequest({method: "getPrivateKeys"}, function(response){
+            for(var r = 0; r<response.length;r++){
+                var key = openpgp.read_privateKey(response[r].armored)[0];
+                if(!key.decryptSecretMPIs()){
+                    if(!key.decryptSecretMPIs(password))
+                   	    $(objectContext).parents('div[class="gE iv gt"]').append('<div class="alert alert-error" id="gCryptAlertPassword">Mymail-Crypt For Gmail was unable to read your key. Is your password correct?</div>');
+                }
+                var material = {key: key , keymaterial: key.privateKeyPacket};
+                for(var sessionKeyIterator in msg.sessionKeys){
+                    var sessionKey = msg.sessionKeys[sessionKeyIterator];
+                    if(decryptHelper(msg, material, sessionKey, objectContext, publicKeys))
                         return;
-                        }
-                    }
-                catch(e){ //This means that the initial key is not the one we need
-                }
-			    for (var j = 0; j < key.subKeys.length; j++) {
-				    keymat = { key: priv_key[0], keymaterial: priv_key[0].subKeys[j]};
-				    sesskey = msg[0].sessionKeys[i];
-				    try{
-                        text = msg.decrypt(material, sessionKey);
-                        if(text != ''){
-                            element.html(text.replace(/\n/g,'<br>'));
+                    
+			        for (var j = 0; j < key.subKeys.length; j++) {
+				        keymat = { key: priv_key[0], keymaterial: priv_key[0].subKeys[j]};
+				        sesskey = msg[0].sessionKeys[i];
+                        if(decryptHelper(msg, keymat, sesskey, objectContext, publicKeys))
                             return;
-                            }
-            		}
-        		    catch(e){
-        		    //Current key is not the correct key
-        		    }
-        		    }
+            		    }
+                    }
                 }
-            }
-        $(objectContext).parents('div[class="gE iv gt"]').append('<div class="alert alert-error" id="gCryptAlertDecrypt">Mymail-Crypt for Gmail was unable to decrypt this message. </div>');
-        });
+            $(objectContext).parents('div[class="gE iv gt"]').append('<div class="alert alert-error" id="gCryptAlertDecrypt">Mymail-Crypt for Gmail was unable to decrypt this message. </div>');
+            });
+    });
     }
 
 //TODO: this has not yet been completed in openpgp.js
