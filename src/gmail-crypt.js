@@ -192,7 +192,7 @@ function decrypt(event){
         chrome.extension.sendRequest({method: "getPrivateKeys"}, function(response){
             for(var r = 0; r<response.length;r++){
                 var key = openpgp.read_privateKey(response[r].armored)[0];
-                if(!key.decryptSecretMPIs()){
+                if(!key.hasUnencryptedSecretKeyData){
                     if(!key.decryptSecretMPIs(password))
                    	    $(objectContext).parents('div[class="gE iv gt"]').append('<div class="alert alert-error" id="gCryptAlertPassword">Mymail-Crypt For Gmail was unable to read your key. Is your password correct?</div>');
                 }
@@ -203,9 +203,10 @@ function decrypt(event){
                         return;
                     
 			        for (var j = 0; j < key.subKeys.length; j++) {
-				        keymat = { key: priv_key[0], keymaterial: priv_key[0].subKeys[j]};
-				        sesskey = msg[0].sessionKeys[i];
-                        if(decryptHelper(msg, keymat, sesskey, objectContext, publicKeys))
+				        keymat = { key: key, keymaterial: key.subKeys[j]};
+				        if(!keymat.keymaterial.hasUnencryptedSecretKeyData)
+    				        keymat.keymaterial.decryptSecretMPIs(password);
+                        if(decryptHelper(msg, keymat, sessionKey, objectContext, publicKeys))
                             return;
             		    }
                     }
