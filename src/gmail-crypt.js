@@ -49,7 +49,7 @@ function getRecipients(form){
     var to = form.find('textarea[name="to"]').val().split(',').concat(form.find('textarea[name="cc"]').val().split(','));
     var recipients = [];
     for(var recipient in to){
-        if(to[recipient].length > 0)
+        if(to[recipient].length > 2)
             recipients.push(gCryptUtil.parseUser(to[recipient]).userEmail);
         }
     return recipients;
@@ -74,8 +74,14 @@ function encryptAndSign(){
             return;        
         }
         chrome.extension.sendRequest({method: "getPublicKeys",emails:recipients}, function(response){
+            var responseKeys = Object.keys(response);
+            if(responseKeys.length == 0){
+                form.find('#gCryptAlertEncryptNoUser').show();
+                return;        
+            }
             var publicKeys = [];
-            for(var recipient in response){
+            for(var r in responseKeys){
+                var recipient = responseKeys[r];
                 if(response[recipient].length == 0)
                     form.find('#gCryptAlertEncryptNoUser').show();
                 else{
@@ -99,9 +105,15 @@ function encrypt(){
         return;        
     }
     chrome.extension.sendRequest({method: "getPublicKeys",emails:recipients}, function(response){
+        var responseKeys = Object.keys(response);
+        if(responseKeys.length == 0){
+            form.find('#gCryptAlertEncryptNoUser').show();
+            return;        
+        }
         var publicKeys = [];
-        for(var recipient in response){
-            if(response[recipient].length == 0)
+        for(var r in responseKeys){
+                var recipient = responseKeys[r];
+                if(response[recipient].length == 0)
                 form.find('#gCryptAlertEncryptNoUser').show();
             else{
                 publicKeys.push(openpgp.read_publicKey(response[recipient])[0]);

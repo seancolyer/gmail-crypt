@@ -1,6 +1,6 @@
 {
 "name":"Mymail-Crypt for Gmail™",
-"version":"13",
+"version":"14",
 "description":"Extension implementing GPG into Webmail (Gmail™) using the OpenPGP.js library. This project is no way affiliated with Google™.",
 "icons": {
 "128":"gmail-crypt128.png",

@@ -17,11 +17,12 @@ chrome.extension.onRequest.addListener(function(request,sender,sendResponse){
         sendResponse(openpgp.keyring.publicKeys);
     }
     if(request.method == "getPublicKeys"){
-        debugger;
         var keys = {};
         for(var email in request.emails){
             try{
-            keys[request.emails[email]] = openpgp.keyring.getPublicKeyForAddress(request.emails[email])[0].armored;
+            if(request.emails[email].length>0){
+                keys[request.emails[email]] = openpgp.keyring.getPublicKeyForAddress(request.emails[email])[0].armored;
+                }
             }
             catch(e){
             
