@@ -19,6 +19,7 @@
             <div class="nav-collapse">
                 <ul class="nav" id="navbar">
                 <li><a href="#homeSpan" class="linkLocal">home</a></li>
+                <li><a href="#optionsSpan" class="linkLocal">options</a></li>
                 <li><a href="#privateKeySpan" class="linkLocal">my keys</a></li>
                 <li><a href="#publicKeySpan" class="linkLocal">friends' keys</a></li>
                 <li><a href="#helpSpan" class="linkLocal">help</a></li>
@@ -52,7 +53,25 @@
             <strong>Before using this extension please read the "help" page and be aware of the security concerns. Also please be aware that the license of this software clearly states this comes WITHOUT ANY WARRANTY.</strong>
             </p>
         </span>
-
+        <span id="optionsSpan">
+            <h2>options</h2>
+            <strong>Please make sure that you reload your gmail page to be sure these changes take effect.</strong>
+            <form action="javascript:saveOptions();" id="optionsForm" class="well">
+                <label class="checkbox">
+                    <input type="checkbox" id="stopAutomaticDrafts">stop automatic draft uploading. (EXPERIMENTAL)
+                </label>
+                <label class="checkbox">
+                    <input type="checkbox" id="showComment">show comment in OpenPGP messages.
+                </label>
+                <label class="checkbox">
+                    <input type="checkbox" id="showVersion">show version in OpenPGP messages.
+                </label>
+                <br/>
+                <div class="form-actions">
+                    <button type="submit" value="submit" class="btn btn-primary">save</button>
+                </div>
+            </form>
+        </span>
         <span id="privateKeySpan">
             <h2>my private keys:</h2>
             <table id="privateKeyTable" class="table table-condensed">
@@ -72,29 +91,29 @@
 
             <a href="#"><h2 id="insertPrivateKeyTitle">insert private key:</h2></a>
             <form action="javascript:insertPrivateKey();" id="insertPrivateKeyForm" class="well">
-            <label>Key</label>
-            <textarea id="newPrivateKey" class="input-xxlarge" rows=10></textarea>
-            <label>Password</label>
-            <input class="input-xxlarge" type="password" id="newPrivateKeyPassword">
-            <br/>
-            <div class="form-actions">
-                <button type="submit" value="submit" class="btn btn-primary">submit</button>
-            </div>
+                <label>Key</label>
+                <textarea id="newPrivateKey" class="input-xxlarge" rows=10></textarea>
+                <label>Password</label>
+                <input class="input-xxlarge" type="password" id="newPrivateKeyPassword">
+                <br/>
+                <div class="form-actions">
+                    <button type="submit" value="submit" class="btn btn-primary">submit</button>
+                </div>
             </form>
             <a href="#"><h2 id="generateKeyPairTitle">generate a new key:</h2></a>
             <form action="javascript:generateKeyPair();" id="generateKeyPairForm" class="well"><br/>
-            <input class="input-large" type="text" id="name" placeholder="your name"/><br/>
-            <input class="input-large" type="text" id="email" placeholder="your email"/><br/>
-            <input class="input-large" type="password" id="password" placeholder="password"/><br/>
-            <label>Key bit-length</label>
-            <select id="numBits">
-                <option value="1024">1024</option>
-                <option value="2048" selected="yes">2048</option>
-            </select><br/><br/>
-            <div class="form-actions">
-                <button type="submit" value="submit" class="btn btn-primary">submit</button>
-                <strong>Please note: key generation may take a few seconds after you submit.</strong>
-            </div>
+                <input class="input-large" type="text" id="name" placeholder="your name"/><br/>
+                <input class="input-large" type="text" id="email" placeholder="your email"/><br/>
+                <input class="input-large" type="password" id="password" placeholder="password"/><br/>
+                <label>Key bit-length</label>
+                <select id="numBits">
+                    <option value="1024">1024</option>
+                    <option value="2048" selected="yes">2048</option>
+                </select><br/><br/>
+                <div class="form-actions">
+                    <button type="submit" value="submit" class="btn btn-primary">submit</button>
+                    <strong>Please note: key generation may take a few seconds after you submit.</strong>
+                </div>
             </form>
         </span>
         <span id="publicKeySpan">
@@ -203,12 +222,12 @@
    function generateKeyPair(){
         $('.alert').hide();
         var form = $('#generateKeyPairForm');
-   		var keyPair = openpgp.generate_key_pair(1,parseInt(form.find('#numBits').val()), form.find('#name').val() + ' <' + form.find('#email').val() + '>', form.find('#password').val());
-   		openpgp.keyring.importPrivateKey(keyPair.privateKeyArmored, form.find('#password').val());
-   		openpgp.keyring.importPublicKey(keyPair.publicKeyArmored);
-   		openpgp.keyring.store();
-   		parsePrivateKeys();
-   		parsePublicKeys();
+        var keyPair = openpgp.generate_key_pair(1,parseInt(form.find('#numBits').val()), form.find('#name').val() + ' <' + form.find('#email').val() + '>', form.find('#password').val());
+        openpgp.keyring.importPrivateKey(keyPair.privateKeyArmored, form.find('#password').val());
+        openpgp.keyring.importPublicKey(keyPair.publicKeyArmored);
+        openpgp.keyring.store();
+        parsePrivateKeys();
+        parsePublicKeys();
    }
    
    function insertPrivateKey(){
@@ -269,7 +288,6 @@
       for(var k=0;k<keys.length;k++){
           var key = keys[k];
           var user = gCryptUtil.parseUser(key.obj.userIds[0].text);
-          //util.hexstrdump(key.keyId)
           $('#privateKeyTable>tbody').append('<tr><td class="removeLink" id="'+k+'"><a href="#">remove</a></td><td>'+user.userName+'</td><td>'+user.userEmail+'</td><td><a href="#private'+k+'" data-toggle="modal">show key</a><div class="modal" id="private'+k+'"><a class="close" data-dismiss="modal">Close</a><br/ >'+key.armored.replace(/\n/g,'<br/ >')+'</div></td></tr>');
           $('#private'+k).hide();
           $('#private'+k).modal({backdrop: true, show: false});
@@ -281,37 +299,79 @@
       });
    }
 
-   function linkLocalFunction(event){
-   $('.alert').hide();
-   $('#publicKeySpan').hide();
-   $('#privateKeySpan').hide();
-   $('#helpSpan').hide();
-   $('#homeSpan').hide();
-   $(event.currentTarget.hash).show();
+    /**
+     * We use openpgp.config for storing our options.
+     */
+   function saveOptions(){
+        var gCryptSettings = openpgp.config.config.gCrypt;
+        if(!gCryptSettings){
+            gCryptSettings = {};
+        }
+        if($('#stopAutomaticDrafts:checked').length == 1){
+            gCryptSettings.stopAutomaticDrafts = true;
+        } else {
+            gCryptSettings.stopAutomaticDrafts = false;
+        }
+        if($('#showComment:checked').length == 1){
+            openpgp.config.config.show_comment = true;
+        } else {
+            openpgp.config.config.show_comment = false;
+        }
+        if($('#showVersion:checked').length == 1){
+            openpgp.config.config.show_version = true;
+        } else {
+            openpgp.config.config.show_version = false;
+        }
+        
+        openpgp.config.config.gCrypt = gCryptSettings;
+        openpgp.config.write();
    }
    
-   function onLoad(){
+   function loadOptions(){
+        var gCryptSettings = openpgp.config.config.gCrypt;
+        if(!gCryptSettings){
+            return
+        }
+        if(gCryptSettings.stopAutomaticDrafts){
+            $('#stopAutomaticDrafts').attr('checked', true);
+        }
+        if(openpgp.config.config.show_comment){
+            $('#showComment').attr('checked', true);
+        }
+        if(openpgp.config.config.show_version){
+            $('#showVersion').attr('checked', true);
+        }
+   }
+
+   function linkLocalFunction(event){
+       $('.alert').hide();
+       $('span').hide();
+       if(event && event.currentTarget){
+        $(event.currentTarget.hash).show();
+       }
+   }
+   
+    function onLoad(){
         openpgp.init();
-      parsePrivateKeys();
-      parsePublicKeys();
-      $('#privateKeySpan').hide();
-      $('#publicKeySpan').hide();
-      $('#helpSpan').hide();
-      $('.linkLocal').click(linkLocalFunction);
-      $('#generateKeyPairForm').hide();
-      $('#generateKeyPairTitle').click(function() {
-        $('#generateKeyPairForm').toggle(generateKeyFormToggle);
-        generateKeyFormToggle = !generateKeyFormToggle;
+        parsePrivateKeys();
+        parsePublicKeys();
+        loadOptions();
+        $('.linkLocal').click(linkLocalFunction).click();
+        $('#homeSpan').show();
+        $('#generateKeyPairForm').hide();
+        $('#generateKeyPairTitle').click(function() {
+            $('#generateKeyPairForm').toggle(generateKeyFormToggle);
+            generateKeyFormToggle = !generateKeyFormToggle;
         });      
-      $('#insertPrivateKeyForm').hide();
-      $('#insertPrivateKeyTitle').click(function() {
-        $('#insertPrivateKeyForm').toggle(privateKeyFormToggle);
-        privateKeyFormToggle = !privateKeyFormToggle;
+        $('#insertPrivateKeyForm').hide();
+        $('#insertPrivateKeyTitle').click(function() {
+            $('#insertPrivateKeyForm').toggle(privateKeyFormToggle);
+            privateKeyFormToggle = !privateKeyFormToggle;
         });
-      $('#insertPublicKeyForm').hide();
-      $('#insertPublicKeyTitle').click(function() {
-        $('#insertPublicKeyForm').toggle(publicKeyFormToggle);
-        publicKeyFormToggle = !publicKeyFormToggle;
+        $('#insertPublicKeyForm').hide();
+        $('#insertPublicKeyTitle').click(function() {
+            $('#insertPublicKeyForm').toggle(publicKeyFormToggle);
+            publicKeyFormToggle = !publicKeyFormToggle;
         });
       }
 

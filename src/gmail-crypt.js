@@ -7,12 +7,40 @@
 
 var menubarLoaded = false;
 var viewTitleBarLoaded = false;
-//gmailVersion was added with the new role out ~11/3/11 of the new gmail style. Value 1 is for old style, 2 is for new.
+//gmailVersion was added with the new role out ~11/3/11 of the new gmail style. Currently deprecated.
 var gmailVersion = 0;
 var openpgpLog;
+var formId = ''; //We use this to store the draft form ID.
 
 function showMessages(str){
 openpgpLog += str;
+}
+
+function clearAndSave(){
+    $('#canvas_frame').contents().find('#gCryptForm').find('iframe').contents().find('body').text('');
+    saveDraft();
+}
+
+function saveDraft(){
+    var form = $('#canvas_frame').contents().find('#gCryptForm');
+    form.attr('id', formId);
+    $('#canvas_frame').contents().find('div[class="dW E"] > :first-child > :nth-child(2)').click();
+}
+
+function rebindSendButtons(){
+    var gMailButton = $('#canvas_frame').contents().find('div[class="dW E"] > div > :contains("Send")');
+    gMailButton.mousedown(saveDraft);
+}
+
+function redrawSaveDraftButton(){
+    var gCryptButton = $('#canvas_frame').contents().find('div[id=gCryptSaveDraft]');
+    var gMailButton = $('#canvas_frame').contents().find('div[class="dW E"] > div > :contains("Save")');
+    if(gCryptButton.text() != gMailButton.text()){
+        gCryptButton.remove();
+        gMailButton.first().clone().insertAfter(gMailButton).attr('id','gCryptSaveDraft').click(saveDraft).show();
+        gMailButton.hide();
+    }
+    setTimeout(redrawSaveDraftButton, 2000);
 }
 
 function getContents(form){
@@ -60,7 +88,7 @@ function encryptAndSign(){
     var form = $('#canvas_frame').contents().find('form');
     form.find('.alert').hide();
     var contents = getContents(form);
-	var privKey;
+    var privKey;
     chrome.extension.sendRequest({method: "getPrivateKeys"}, function(response){
         privKey = openpgp.read_privateKey(response[0].armored)[0];
         if(!privKey.decryptSecretMPIs()){
@@ -128,7 +156,7 @@ function sign(){
     var form = $('#canvas_frame').contents().find('form');
     form.find('.alert').hide();
     var contents = getContents(form);
-	var privKey;
+    var privKey;
     chrome.extension.sendRequest({method: "getPrivateKeys"}, function(response){
         privKey = openpgp.read_privateKey(response[0].armored)[0];
         if(!privKey.decryptSecretMPIs()){
@@ -145,17 +173,11 @@ function getMessage(objectContext){
     var msg;
     //we need to use regex here because gmail will automatically form \n into <br> or <wbr>, strip these out
     //I'm not entirely happy with these replace statements, perhaps there can be a different approach
-    if(gmailVersion == 1){
-        element = $(event.currentTarget).closest('[class="G3 G2"]').find('[class="ii gt"] div');
-        msg = element.html().replace(/(<br>)|(<wbr>)/g,'\n');
-    }
-    if(gmailVersion == 2){
-        element = $(event.currentTarget).closest('div[class="gs"]').find('[class*="ii gt"] div');
-        msg = element.html().replace(/\n/g,"");
-        msg = msg.replace(/(<br><\/div>)/g,'\n'); //we need to ensure that extra spaces aren't added where gmail puts a <div><br></div>
-        msg = msg.replace(/(<\/div>)/g,'\n');
-        msg = msg.replace(/(<br>)/g,'\n');
-    }
+    element = $(event.currentTarget).closest('div[class="gs"]').find('[class*="ii gt"] div');
+    msg = element.html().replace(/\n/g,"");
+    msg = msg.replace(/(<br><\/div>)/g,'\n'); //we need to ensure that extra spaces aren't added where gmail puts a <div><br></div>
+    msg = msg.replace(/(<\/div>)/g,'\n');
+    msg = msg.replace(/(<br>)/g,'\n');
     
     //originally stripped just <br> and <wbr> but gmail can add other things such as <div class="im">
     msg = msg.replace(/<(.*?)>/g,'');
@@ -213,14 +235,13 @@ function decrypt(event){
                     var sessionKey = msg.sessionKeys[sessionKeyIterator];
                     if(decryptHelper(msg, material, sessionKey, objectContext, publicKeys))
                         return;
-                    
-			        for (var j = 0; j < key.subKeys.length; j++) {
-				        keymat = { key: key, keymaterial: key.subKeys[j]};
-				        if(!keymat.keymaterial.hasUnencryptedSecretKeyData)
-    				        keymat.keymaterial.decryptSecretMPIs(password);
+                    for (var j = 0; j < key.subKeys.length; j++) {
+                        keymat = { key: key, keymaterial: key.subKeys[j]};
+                        if(!keymat.keymaterial.hasUnencryptedSecretKeyData)
+                            keymat.keymaterial.decryptSecretMPIs(password);
                         if(decryptHelper(msg, keymat, sessionKey, objectContext, publicKeys))
                             return;
-            		    }
+                        }
                     }
                 }
             $(objectContext).parents('div[class="gE iv gt"]').append('<div class="alert alert-error" id="gCryptAlertDecrypt">Mymail-Crypt for Gmail was unable to decrypt this message. </div>');
@@ -244,16 +265,23 @@ function verifySignature(){
         });
     }
 
-function composeIntercept(ev) {
-    if( $('#canvas_frame').contents().find('html[class="cQ"]').length > 0)
-        gmailVersion = 1;
-    if( $('#canvas_frame').contents().find('html[class="aao"]').length > 0){
-        gmailVersion = 2;
-        }
+function stopAutomaticDrafts(){
+    var form = $('#canvas_frame').contents().find('[class="fN"] > form').first();
+    formId = form.attr('id');
+    //We change the ID of the form so that gmail won't upload drafts.
+    form.attr('id','gCryptForm');
+    rebindSendButtons();
+    //Clear and save when using the left navigation bar
+    $('#canvas_frame').contents().find('[class="gbqfb"]').mousedown(clearAndSave);
+    //Clear when using the search bar
+    $('#canvas_frame').contents().find('[class="nH oy8Mbf nn aeN"]').mousedown(clearAndSave);
+    redrawSaveDraftButton();
+}
 
-	var form = $('#canvas_frame').contents().find('form');
+function composeIntercept(ev) {
+    var form = $('#canvas_frame').contents().find('form');
     var menubar = form.find('td[class="fA"]');
-	if(menubar.length>0){
+    if(menubar && menubar.length>0){
         if(menubar.find('#gCryptEncrypt').length == 0){
             menubar.append('<span id="gCryptEncrypt" class="btn-group"><a class="btn" href="#" id="encryptAndSign1"><img src="'+chrome.extension.getURL("images/encryptIcon.png")+'" width=13 height=13/> Encrypt</a><a class="btn dropdown-toggle" data-toggle="dropdown" href="#"><span class="caret"></span></a><ul class="dropdown-menu"><li id="encryptAndSign2"><a href="#">Encrypt (sign)</a></li><li id="encrypt"><a href="#">Encrypt (don\'t sign)</a></li><li id="sign"><a href="#">Sign only</a></li></ul></span><form class="form-inline"><input type="password" class="input-small" placeholder="password" id="gCryptPasswordEncrypt"></form>');
             menubar.find('#encryptAndSign1').click(encryptAndSign);
@@ -266,20 +294,21 @@ function composeIntercept(ev) {
             });
             form.find('.eJ').append('<div class="alert alert-error" id="gCryptAlertPassword">Mymail-Crypt for Gmail was unable to read your key. Is your password correct?</div>');
             form.find('.eJ').append('<div class="alert alert-error" id="gCryptAlertEncryptNoUser">Unable to find a key for the given user. Have you inserted their public key?</div>');
+            
+            chrome.extension.sendRequest({method: 'getOption', option: 'stopAutomaticDrafts'}, function(response){
+                if(response == true){
+                    stopAutomaticDrafts();
+                    }
+            });
         }
-	}
-	
-	//Why is this not firing for all cases? It seems that if a page has been previously loaded it uses some sort of caching and won't fire the event
-	var viewTitleBar;
-	if(gmailVersion == 1)
-	    viewTitleBar = $('#canvas_frame').contents().find('div[class="G0"]');
-	if(gmailVersion == 2){
-	    viewTitleBar = $('#canvas_frame').contents().find('td[class="gH acX"]');
-	}
-    if(viewTitleBar.length > 0){
+    }
+
+    //Why is this not firing for all cases? It seems that if a page has been previously loaded it uses some sort of caching and won't fire the event
+    var viewTitleBar = $('#canvas_frame').contents().find('td[class="gH acX"]');
+    if(viewTitleBar && viewTitleBar.length > 0){
         viewTitleBar.each(function(v){
             if( $(this).find('#gCryptDecrypt').length == 0){
-	            $(this).prepend('<span id="gCryptDecrypt"><a class="btn" href="#" id="decrypt"><img src="'+chrome.extension.getURL("images/decryptIcon.png")+'" width=13 height=13/ >Decrypt</a></span>');
+                $(this).prepend('<span id="gCryptDecrypt"><a class="btn" href="#" id="decrypt"><img src="'+chrome.extension.getURL("images/decryptIcon.png")+'" width=13 height=13/ >Decrypt</a></span>');
                 $(this).find('#decrypt').click(decrypt);
                 $(this).append('<form class="form-inline"><input type="password" class="input-small" placeholder="password" id="gCryptPasswordDecrypt"></form>');
                 $(this).find('form[class="form-inline"]').submit(function(event){
@@ -299,18 +328,21 @@ function composeIntercept(ev) {
 }
 
 function onLoad() {
-	if($('#canvas_frame').length == 1){
-	   document.addEventListener("DOMSubtreeModified",function(){
-	       composeIntercept();
-	       //I've added the timeout because in threaded applications, proper DOM isn't loaded until after this event fires.
-	       //TODO: I think there should be a better way to do this. Also note that DOM event handlers are being phased out..
-           setTimeout(composeIntercept, 400);
+    if($('#canvas_frame').length == 1){
+       document.addEventListener("DOMSubtreeModified",function(){
+           composeIntercept();
+           //I've added the timeout because in threaded applications, proper DOM isn't loaded until after this event fires.
+           //TODO: I think there should be a better way to do this. Also note that DOM event handlers are being phased out..
+           setTimeout(composeIntercept, 500);
            },false);
-	   document.addEventListener("DOMFocusIn",function(){
-	       composeIntercept();
+       document.addEventListener("DOMFocusIn",function(){
+           composeIntercept();
            },false);
        }
     openpgp.init();
+    chrome.extension.sendRequest({method: 'getConfig'}, function(response){
+        openpgp.config = response;
+    });
 }
 
 $(document).ready(onLoad);

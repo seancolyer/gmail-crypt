@@ -1,6 +1,5 @@
 <html>
 <script src='lib/openpgp.js'></script>
-<script src='gmail-cryptUtils.js'></script>
 <script>
 
 /* This is the background page for gmail-crypt that communicates between gmail and the extension. 
@@ -38,6 +37,19 @@ chrome.extension.onRequest.addListener(function(request,sender,sendResponse){
     }
     if(request.method == "getPrivateKeys"){
         sendResponse(openpgp.keyring.privateKeys);
+    }
+    if(request.method == "getOption"){
+        openpgp.config.read();
+        var gCryptSettings = openpgp.config.config.gCrypt;
+        if(!gCryptSettings){
+            sendResponse('');
+        }
+        else{
+            sendResponse(gCryptSettings[request.option]);
+        }
+    }
+    if(request.method == "getConfig"){
+        sendResponse(openpgp.config);
     }
     else{
     }
