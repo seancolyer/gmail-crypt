@@ -160,6 +160,10 @@
             $('#insertPublicKeyForm').toggle(publicKeyFormToggle);
             publicKeyFormToggle = !publicKeyFormToggle;
         });
+        $('#optionsFormSubmit').click(saveOptions);
+        $('#insertPrivateKeyFormSubmit').click(insertPrivateKey);
+        $('#generateKeyPairFormSubmit').click(generateKeyPair);
+        $('#insertPublicKeyFormSubmit').click(insertPublicKey);
       }
 
    $(document).ready(onLoad());

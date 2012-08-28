@@ -56,7 +56,7 @@
         <span id="optionsSpan">
             <h2>options</h2>
             <strong>Please make sure that you reload your gmail page to be sure these changes take effect.</strong>
-            <form action="javascript:saveOptions();" id="optionsForm" class="well">
+            <form id="optionsForm" class="well">
                 <label class="checkbox">
                     <input type="checkbox" id="stopAutomaticDrafts">stop automatic draft uploading. (EXPERIMENTAL)
                 </label>
@@ -68,7 +68,7 @@
                 </label>
                 <br/>
                 <div class="form-actions">
-                    <button type="submit" value="submit" class="btn btn-primary">save</button>
+                    <button id="optionsFormSubmit" type="submit" value="submit" class="btn btn-primary">save</button>
                 </div>
             </form>
         </span>
@@ -90,18 +90,18 @@
             </table>
 
             <a href="#"><h2 id="insertPrivateKeyTitle">insert private key:</h2></a>
-            <form action="javascript:insertPrivateKey();" id="insertPrivateKeyForm" class="well">
+            <form id="insertPrivateKeyForm" class="well">
                 <label>Key</label>
                 <textarea id="newPrivateKey" class="input-xxlarge" rows=10></textarea>
                 <label>Password</label>
                 <input class="input-xxlarge" type="password" id="newPrivateKeyPassword">
                 <br/>
                 <div class="form-actions">
-                    <button type="submit" value="submit" class="btn btn-primary">submit</button>
+                    <button id="insertPrivateKeyFormSubmit" type="submit" value="submit" class="btn btn-primary">submit</button>
                 </div>
             </form>
             <a href="#"><h2 id="generateKeyPairTitle">generate a new key:</h2></a>
-            <form action="javascript:generateKeyPair();" id="generateKeyPairForm" class="well"><br/>
+            <form id="generateKeyPairForm" class="well"><br/>
                 <input class="input-large" type="text" id="name" placeholder="your name"/><br/>
                 <input class="input-large" type="text" id="email" placeholder="your email"/><br/>
                 <input class="input-large" type="password" id="password" placeholder="password"/><br/>
@@ -111,7 +111,7 @@
                     <option value="2048" selected="yes">2048</option>
                 </select><br/><br/>
                 <div class="form-actions">
-                    <button type="submit" value="submit" class="btn btn-primary">submit</button>
+                    <button id="generateKeyPairFormSubmit" type="submit" value="submit" class="btn btn-primary">submit</button>
                     <strong>Please note: key generation may take a few seconds after you submit.</strong>
                 </div>
             </form>
@@ -136,10 +136,10 @@
             </table>
 
             <a href="#"><h2 id="insertPublicKeyTitle">insert public key:</h2></a>
-            <form action="javascript:insertPublicKey();" id="insertPublicKeyForm" class="well">
+            <form id="insertPublicKeyForm" class="well">
             <textarea id="newPublicKey" class="input-xxlarge" rows=10></textarea>
             <div class="form-actions">
-                <button type="submit" value="submit" class="btn btn-primary">submit</button>
+                <button id="insertPublicKeyFormSubmit" type="submit" value="submit" class="btn btn-primary">submit</button>
             </div>
             </form>
         </span>
