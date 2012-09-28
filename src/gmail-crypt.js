@@ -84,7 +84,6 @@ function getRecipients(form){
 }
 
 function encryptAndSign(){
-    debugger;
     var form = rootElement.find('form');
     form.find('.alert').hide();
     var contents = getContents(form);
@@ -210,7 +209,6 @@ function decryptHelper(msg, material, sessionKey, objectContext, publicKeys){
 }
 
 function decrypt(event){
-    debugger;
     var password = $(this).parent().parent().find('form[class="form-inline"] input[type="password"]').val();
     rootElement.find('.alert').hide();
     var objectContext = this;
@@ -309,7 +307,6 @@ function composeIntercept(ev) {
     var viewTitleBar = rootElement.find('td[class="gH acX"]');
     if(viewTitleBar && viewTitleBar.length > 0){
         viewTitleBar.each(function(v){
-            //debugger;
             if( $(this).find('#gCryptDecrypt').length == 0){
                 $(this).prepend('<span id="gCryptDecrypt"><a class="btn" href="#" id="decrypt"><img src="'+chrome.extension.getURL("images/decryptIcon.png")+'" width=13 height=13/ >Decrypt</a></span>');
                 $(this).find('#decrypt').click(decrypt);
@@ -321,8 +318,6 @@ function composeIntercept(ev) {
 
                 //TODO: <a class="btn" href="#" id="verifySignature">Check Signature</a>
                 //$(this).find('#verifySignature').click(verifySignature);
-                
-                //TODO issues with inserting alert here. I think it has to do with subtreemodified not firing.
             }
         });
     }
