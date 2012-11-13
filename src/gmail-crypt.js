@@ -42,10 +42,18 @@ function redrawSaveDraftButton(){
     setTimeout(redrawSaveDraftButton, 2000);
 }
 
-function getContents(form){
+function getContents(form, event){
+    //g_editable is intended to work with Gmail's new broken out window approach.
+    //we search based on event because it works well in case multiple compose windows are open
+    var msg;
+    var g_editable = $(event.currentTarget).parents().find('[g_editable]').first();
+    if (g_editable && g_editable.length > 0 && g_editable.html()) {
+        msg = g_editable.html().replace(/(<div>)/g,'\n');
+        msg = msg.replace(/(<\/div>)/g,'');
+        return {g_editable: g_editable, msg: msg};
+    }
     var textarea = $('textarea[name="body"]',form);
     var iframe = $('iframe',form).contents().find('body');
-    var msg;
     try{
         msg = iframe.html().replace(/(<div>)/g,'\n');
         msg = msg.replace(/(<\/div>)/g,'');
@@ -56,7 +64,12 @@ function getContents(form){
     return {textarea: textarea, iframe: iframe, msg: msg };
 }
 
+//This could be streamlined as google has change this mechanism frequently.
 function writeContents(contents, message){
+    if (contents.g_editable) {
+        message = message.split('\n').join('<br/>');
+        contents.g_editable.html(message);
+        }
     try{
         contents.iframe[0].innerText = message;
         }
@@ -72,21 +85,33 @@ function writeContents(contents, message){
 
 }
 
-function getRecipients(form){
-    var to = form.find('textarea[name="to"]').val().split(',').concat(form.find('textarea[name="cc"]').val().split(','));
+function getRecipients(form, event){
     var recipients = [];
+    if (useComposeSubWindows) {
+        //for new in window compose gmail window
+        var emailsParent = $(event.currentTarget).parents().find('[email]').first().parent().parent();
+        if (emailsParent && emailsParent.length > 0) {
+            emailsParent.find('[email]').each(function() {
+                recipients.push($(this).attr("email"));
+            });
+        }
+    }
+    else {
+    //for old style
+    var to = form.find('textarea[name="to"]').val().split(',').concat(form.find('textarea[name="cc"]').val().split(','));
     for(var recipient in to){
         if(to[recipient].length > 2)
             recipients.push(gCryptUtil.parseUser(to[recipient]).userEmail);
         }
+    }
+    
     return recipients;
-        
 }
 
-function encryptAndSign(){
+function encryptAndSign(event){
     var form = rootElement.find('form');
     form.find('.alert').hide();
-    var contents = getContents(form);
+    var contents = getContents(form, event);
     var privKey;
     chrome.extension.sendRequest({method: "getPrivateKeys"}, function(response){
         privKey = openpgp.read_privateKey(response[0].armored)[0];
@@ -95,7 +120,7 @@ function encryptAndSign(){
             if(!privKey.decryptSecretMPIs(password))
                 form.find('#gCryptAlertPassword').show();
         }
-        var recipients = getRecipients(form);
+        var recipients = getRecipients(form, event);
         if(recipients.length == 0){
             form.find('#gCryptAlertEncryptNoUser').show();
             return;        
@@ -121,12 +146,12 @@ function encryptAndSign(){
         });
 }
 
-function encrypt(){
+function encrypt(event){
     var form = rootElement.find('form');
     form.find('.alert').hide();
-    var contents = getContents(form);
+    var contents = getContents(form, event);
     
-    var recipients = getRecipients(form);
+    var recipients = getRecipients(form, event);
     if(recipients.length == 0){
         form.find('#gCryptAlertEncryptNoUser').show();
         return;        
@@ -151,10 +176,10 @@ function encrypt(){
         });
 }
 
-function sign(){
+function sign(event){
     var form = rootElement.find('form');
     form.find('.alert').hide();
-    var contents = getContents(form);
+    var contents = getContents(form, event);
     var privKey;
     chrome.extension.sendRequest({method: "getPrivateKeys"}, function(response){
         privKey = openpgp.read_privateKey(response[0].armored)[0];
@@ -277,7 +302,41 @@ function stopAutomaticDrafts(){
     redrawSaveDraftButton();
 }
 
+var useComposeSubWindows = false;
+
 function composeIntercept(ev) {
+    var composeBoxes = $('.n1tfz');
+    if (composeBoxes && composeBoxes.length > 0) {
+        composeBoxes.each(function(){
+            var composeMenu = $(this).parent().parent().parent();
+            if (composeMenu && composeMenu.length> 0 && composeMenu.find('#gCryptEncrypt').length == 0) {
+                useComposeSubWindows = true;
+                var maxSizeCheck = composeMenu.parent().parent().parent().parent().parent().find('[style*="max-height"]');
+                //We have to check again because of rapidly changing elements
+                if(composeMenu.find('#gCryptEncrypt').length == 0) {
+                    //The below logic is for inserting the form into the windows, different behavior for in window compose and popout compose.
+                    var encryptionFormOptions = '<span id="gCryptEncrypt" class="btn-group" style="float:right"><a class="btn" href="#" id="encryptAndSign"><img src="'+chrome.extension.getURL("images/encryptIcon.png")+'" width=13 height=13/> Encrypt and Sign</a><a class="btn" href="#" id="encrypt">Encrypt</a><a class="btn" href="#" id="sign">Sign</a></span>';
+                    
+                    var encryptionForm = '<form class="form-inline" style="float:right"><input type="password" class="input-small" placeholder="password" id="gCryptPasswordEncrypt" style="font-size:12px;margin-top:5px;"></form>';
+
+                    if (maxSizeCheck && maxSizeCheck.length > 0 && maxSizeCheck.css('max-height') == maxSizeCheck.css('height')) {
+                        composeMenu.find('.n1tfz :nth-child(6)').after('<td class="gU" style="min-width: 360px;">' + encryptionFormOptions + '</td><td class="gU">' + encryptionForm + '</td>');
+                    }
+                    else {
+                        composeMenu.append(encryptionFormOptions + encryptionForm);
+                        composeMenu.css("height","80px");
+                    }
+                    composeMenu.find('#encryptAndSign').click(encryptAndSign);
+                    composeMenu.find('#encrypt').click(encrypt);
+                    composeMenu.find('#sign').click(sign);
+                    composeMenu.find('form[class="form-inline"]').submit(function(event){
+                        encryptAndSign(event);
+                        return false;
+                    });
+                }
+            }
+        });
+    }
     rootElement = $('#canvas_frame').length > 0 ? $('#canvas_frame').contents() : $(document);
     var form = rootElement.find('form');
     var menubar = form.find('td[class="fA"]');
@@ -288,8 +347,8 @@ function composeIntercept(ev) {
             menubar.find('#encryptAndSign2').click(encryptAndSign);
             menubar.find('#encrypt').click(encrypt);
             menubar.find('#sign').click(sign);
-            menubar.find('form[class="form-inline"]').submit(function(){
-                encryptAndSign();
+            menubar.find('form[class="form-inline"]').submit(function(event){
+                encryptAndSign(event);
                 return false;
             });
             form.find('.eJ').append('<div class="alert alert-error" id="gCryptAlertPassword">Mymail-Crypt for Gmail was unable to read your key. Is your password correct?</div>');
