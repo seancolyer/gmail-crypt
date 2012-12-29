@@ -1,0 +1,9 @@
+@-webkit-keyframes composeInserted {  
+    from { clip: rect(1px, auto, auto, auto); }
+      to { clip: rect(0px, auto, auto, auto); }
+    }
+
+.n1tfz, td[class="gH acX"], td[class="fA"]{
+      -webkit-animation-duration: 0.001s;
+      -webkit-animation-name: composeInserted;
+    }

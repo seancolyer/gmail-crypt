@@ -17,7 +17,7 @@
     },
 "content_scripts": [{
     "matches":["https://mail.google.com/*","http://mail.google.com/*"],
-    "css": ["bootstrap.btn.css"],
+    "css": ["bootstrap.btn.css", "gmail-crypt.css"],
     "js": ["lib/jquery-1.8.2.min.js", "lib/bootstrap.min.js","lib/openpgp.js","gmail-cryptUtil.js","gmail-crypt.js"],
     "run_at":"document_idle",
     "all_frames":true

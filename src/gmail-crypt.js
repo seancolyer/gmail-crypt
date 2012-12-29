@@ -5,8 +5,6 @@
  * See included "LICENSE" file for details.
  */
 
-//gmailVersion was added with the new role out ~11/3/11 of the new gmail style. Currently deprecated.
-var gmailVersion = 0;
 var openpgpLog;
 var formId = ''; //We use this to store the draft form ID.
 var rootElement = $(document);
@@ -384,21 +382,20 @@ function composeIntercept(ev) {
     rootElement.find('#gCryptAlertEncryptNoUser').hide();
 }
 
-function onLoad() {
-    document.addEventListener("DOMSubtreeModified",function(){
-       composeIntercept();
-       //I've added the timeout because in threaded applications, proper DOM isn't loaded until after this event fires.
-       //TODO: I think there should be a better way to do this. Also note that DOM event handlers are being phased out..
-       setTimeout(composeIntercept, 500);
-       },false);
-    document.addEventListener("DOMFocusIn",function(){
-       composeIntercept();
-       },false);
+//This animation strategy inspired by http://blog.streak.com/2012/11/how-to-detect-dom-changes-in-css.html
+//based on http://davidwalsh.name/detect-node-insertion changes will depend on CSS as well.
+var insertListener = function(event) {
+  if (event.animationName == "composeInserted") {
+    composeIntercept();
+  }
+}
+
+function onLoadAnimation() {
+    document.addEventListener("webkitAnimationStart", insertListener, false);
     openpgp.init();
     chrome.extension.sendRequest({method: 'getConfig'}, function(response){
         openpgp.config = response;
     });
 }
 
-$(document).ready(onLoad);
-
+$(document).ready(onLoadAnimation);
