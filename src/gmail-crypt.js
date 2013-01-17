@@ -9,8 +9,24 @@ var openpgpLog;
 var formId = ''; //We use this to store the draft form ID.
 var rootElement = $(document);
 
+//Grouping all alerts in one place, easy to access. Consider moving .html to a format function, since they are heavily pattern based.
+var gCryptAlerts = { 
+  gCryptAlertDecryptNoMessage : {type: 'error', text: 'No OpenPGP message was found.', 
+    html: '<div class="alert alert-error" id="gCryptAlertDecryptNoMessage">No OpenPGP message was found.</div>' },
+  gCryptUnableVerifySignature: {type: '', text: 'Mymail-Crypt For Gmail was unable to verify this message.', 
+    html: '<div class="alert" id="gCryptUnableVerifySignature">Mymail-Crypt For Gmail was unable to verify this message.</div>' },
+  gCryptAbleVerifySignature: {type: 'success', text: 'Mymail-Crypt For Gmail was able to verify this message.', 
+    html: '<div class="alert alert-success" id="gCryptUnableVerifySignature">Mymail-Crypt For Gmail was able to verify this message.</div>'},
+  gCryptAlertPassword: {type: 'error', text: 'Mymail-Crypt For Gmail was unable to read your key. Is your password correct?', 
+    html: '<div class="alert alert-error" id="gCryptAlertPassword">Mymail-Crypt For Gmail was unable to read your key. Is your password correct?</div>'},
+  gCryptAlertDecrypt: {type: 'error', text: 'Mymail-Crypt for Gmail was unable to decrypt this message.',
+    html: '<div class="alert alert-error" id="gCryptAlertDecrypt">Mymail-Crypt for Gmail was unable to decrypt this message.</div>'},
+  gCryptAlertEncryptNoUser: {type: 'error', text: 'Unable to find a key for the given user. Have you inserted their public key?',
+    html: '<div class="alert alert-error" id="gCryptAlertEncryptNoUser">Unable to find a key for the given user. Have you inserted their public key?</div>'}
+}
+
 function showMessages(str){
-openpgpLog += str;
+  console.log(str);
 }
 
 function clearAndSave(){
@@ -205,7 +221,7 @@ function getMessage(objectContext){
     msg = msg.replace(/<(.*?)>/g,'');
     msg = openpgp.read_message(msg);
     if(msg == null){
-        $(objectContext).parents('div[class="gE iv gt"]').append('<div class="alert alert-error" id="gCryptAlertDecryptNoMessage">No OpenPGP message was found.</div>');
+        $(objectContext).parents('div[class="gE iv gt"]').append(gCryptAlerts.gCryptAlertDecryptNoMessage.html);
         return;
     }
     return [element, msg[0]];
@@ -217,10 +233,10 @@ function decryptHelper(msg, material, sessionKey, objectContext, publicKeys){
         var decryptResult = msg.decryptAndVerifySignature(material, sessionKey, publicKeys);
         if(decryptResult.text != ''){
             if(decryptResult.validSignatures.indexOf(false)>=0 || decryptResult.validSignatures.length == 0){
-                $(objectContext).parents('div[class="gE iv gt"]').append('<div class="alert" id="gCryptUnableVerifySignature">Mymail-Crypt For Gmail was unable to verify this message.</div>');
+                $(objectContext).parents('div[class="gE iv gt"]').append(gCryptAlerts.gCryptUnableVerifySignature.html);
             }
             else{
-                $(objectContext).parents('div[class="gE iv gt"]').append('<div class="alert alert-success" id="gCryptUnableVerifySignature">Mymail-Crypt For Gmail was able to verify this message.</div>');                            
+                $(objectContext).parents('div[class="gE iv gt"]').append(gCryptAlerts.gCryptAbleVerifySignature.html);
             }
             element.html(decryptResult.text.replace(/\n/g,'<br>'));
             return true;
@@ -250,7 +266,7 @@ function decrypt(event){
                 var key = openpgp.read_privateKey(response[r].armored)[0];
                 if(!key.hasUnencryptedSecretKeyData){
                     if(!key.decryptSecretMPIs(password))
-                   	    $(objectContext).parents('div[class="gE iv gt"]').append('<div class="alert alert-error" id="gCryptAlertPassword">Mymail-Crypt For Gmail was unable to read your key. Is your password correct?</div>');
+                   	    $(objectContext).parents('div[class="gE iv gt"]').append(gCryptAlerts.gCryptAlertPassword.html);
                 }
                 var material = {key: key , keymaterial: key.privateKeyPacket};
                 for(var sessionKeyIterator in msg.sessionKeys){
@@ -266,7 +282,7 @@ function decrypt(event){
                         }
                     }
                 }
-            $(objectContext).parents('div[class="gE iv gt"]').append('<div class="alert alert-error" id="gCryptAlertDecrypt">Mymail-Crypt for Gmail was unable to decrypt this message. </div>');
+            $(objectContext).parents('div[class="gE iv gt"]').append(gCryptAlerts.gCryptAlertDecrypt.html);
             });
     });
     }
@@ -298,6 +314,12 @@ function stopAutomaticDrafts(){
     //Clear when using the search bar
     rootElement.find('[class="nH oy8Mbf nn aeN"]').mousedown(clearAndSave);
     redrawSaveDraftButton();
+}
+
+function showModalAlert(message) {
+  debugger;
+  $('#gCryptModalBody').html(message);
+  $('#gCryptModal').modal('show');
 }
 
 var useComposeSubWindows = false;
@@ -349,8 +371,8 @@ function composeIntercept(ev) {
                 encryptAndSign(event);
                 return false;
             });
-            form.find('.eJ').append('<div class="alert alert-error" id="gCryptAlertPassword">Mymail-Crypt for Gmail was unable to read your key. Is your password correct?</div>');
-            form.find('.eJ').append('<div class="alert alert-error" id="gCryptAlertEncryptNoUser">Unable to find a key for the given user. Have you inserted their public key?</div>');
+            form.find('.eJ').append(gCryptAlerts.gCryptAlertPassword.html);
+            form.find('.eJ').append(gCryptAlerts.gCryptAlertEncryptNoUser.html);
             
             chrome.extension.sendRequest({method: 'getOption', option: 'stopAutomaticDrafts'}, function(response){
                 if(response == true){
@@ -372,7 +394,6 @@ function composeIntercept(ev) {
                     $(this).parent().find('a[class="btn"]').click();
                     return false;
                 });
-
                 //TODO: <a class="btn" href="#" id="verifySignature">Check Signature</a>
                 //$(this).find('#verifySignature').click(verifySignature);
             }
@@ -380,6 +401,13 @@ function composeIntercept(ev) {
     }
     rootElement.find('#gCryptAlertPassword').hide();
     rootElement.find('#gCryptAlertEncryptNoUser').hide();
+
+    var gmailCryptModal = $('#gCryptModal');
+    if(gmailCryptModal && gmailCryptModal.length == 0) {
+      $('.aAU').append('<div id="gCryptModal" class="modal hide fade" tabindex=-1 role="dialog"><div class="modal-header">' +
+                   '<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>' +
+                   '<h3>Mymail-Crypt for Gmail</h3></div><div id="gCryptModalBody" class="modal-body"></div></div>');
+    }
 }
 
 //This animation strategy inspired by http://blog.streak.com/2012/11/how-to-detect-dom-changes-in-css.html
