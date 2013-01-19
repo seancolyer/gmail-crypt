@@ -1,7 +1,7 @@
-/* This is the general class for gmail-crypt that runs within gmail context. 
- * 
+/* This is the general class for gmail-crypt that runs within gmail context.
+ *
  * Copyright 2011,2012 Sean Colyer, <sean @ colyer . name>
- * This program is licensed under the GNU General Public License Version 2. 
+ * This program is licensed under the GNU General Public License Version 2.
  * See included "LICENSE" file for details.
  */
 
@@ -10,20 +10,20 @@ var formId = ''; //We use this to store the draft form ID.
 var rootElement = $(document);
 
 //Grouping all alerts in one place, easy to access. Consider moving .html to a format function, since they are heavily pattern based.
-var gCryptAlerts = { 
-  gCryptAlertDecryptNoMessage : {type: 'error', text: 'No OpenPGP message was found.', 
+var gCryptAlerts = {
+  gCryptAlertDecryptNoMessage : {type: 'error', text: 'No OpenPGP message was found.',
     html: '<div class="alert alert-error" id="gCryptAlertDecryptNoMessage">No OpenPGP message was found.</div>' },
-  gCryptUnableVerifySignature: {type: '', text: 'Mymail-Crypt For Gmail was unable to verify this message.', 
+  gCryptUnableVerifySignature: {type: '', text: 'Mymail-Crypt For Gmail was unable to verify this message.',
     html: '<div class="alert" id="gCryptUnableVerifySignature">Mymail-Crypt For Gmail was unable to verify this message.</div>' },
-  gCryptAbleVerifySignature: {type: 'success', text: 'Mymail-Crypt For Gmail was able to verify this message.', 
+  gCryptAbleVerifySignature: {type: 'success', text: 'Mymail-Crypt For Gmail was able to verify this message.',
     html: '<div class="alert alert-success" id="gCryptUnableVerifySignature">Mymail-Crypt For Gmail was able to verify this message.</div>'},
-  gCryptAlertPassword: {type: 'error', text: 'Mymail-Crypt For Gmail was unable to read your key. Is your password correct?', 
+  gCryptAlertPassword: {type: 'error', text: 'Mymail-Crypt For Gmail was unable to read your key. Is your password correct?',
     html: '<div class="alert alert-error" id="gCryptAlertPassword">Mymail-Crypt For Gmail was unable to read your key. Is your password correct?</div>'},
   gCryptAlertDecrypt: {type: 'error', text: 'Mymail-Crypt for Gmail was unable to decrypt this message.',
     html: '<div class="alert alert-error" id="gCryptAlertDecrypt">Mymail-Crypt for Gmail was unable to decrypt this message.</div>'},
   gCryptAlertEncryptNoUser: {type: 'error', text: 'Unable to find a key for the given user. Have you inserted their public key?',
     html: '<div class="alert alert-error" id="gCryptAlertEncryptNoUser">Unable to find a key for the given user. Have you inserted their public key?</div>'}
-}
+};
 
 function showMessages(str){
   console.log(str);
@@ -118,7 +118,7 @@ function getRecipients(form, event){
             recipients.push(gCryptUtil.parseUser(to[recipient]).userEmail);
         }
     }
-    
+
     return recipients;
 }
 
@@ -135,20 +135,20 @@ function encryptAndSign(event){
                 form.find('#gCryptAlertPassword').show();
         }
         var recipients = getRecipients(form, event);
-        if(recipients.length == 0){
+        if(recipients.length === 0){
             form.find('#gCryptAlertEncryptNoUser').show();
-            return;        
+            return;
         }
         chrome.extension.sendRequest({method: "getPublicKeys",emails:recipients}, function(response){
             var responseKeys = Object.keys(response);
-            if(responseKeys.length == 0){
+            if(responseKeys.length === 0){
                 form.find('#gCryptAlertEncryptNoUser').show();
-                return;        
+                return;
             }
             var publicKeys = [];
             for(var r in responseKeys){
                 var recipient = responseKeys[r];
-                if(response[recipient].length == 0)
+                if(response[recipient].length === 0)
                     form.find('#gCryptAlertEncryptNoUser').show();
                 else{
                     publicKeys.push(openpgp.read_publicKey(response[recipient])[0]);
@@ -164,22 +164,22 @@ function encrypt(event){
     var form = rootElement.find('form');
     form.find('.alert').hide();
     var contents = getContents(form, event);
-    
+
     var recipients = getRecipients(form, event);
-    if(recipients.length == 0){
+    if(recipients.length === 0){
         form.find('#gCryptAlertEncryptNoUser').show();
-        return;        
+        return;
     }
     chrome.extension.sendRequest({method: "getPublicKeys",emails:recipients}, function(response){
         var responseKeys = Object.keys(response);
-        if(responseKeys.length == 0){
+        if(responseKeys.length === 0){
             form.find('#gCryptAlertEncryptNoUser').show();
-            return;        
+            return;
         }
         var publicKeys = [];
         for(var r in responseKeys){
                 var recipient = responseKeys[r];
-                if(response[recipient].length == 0)
+                if(response[recipient].length === 0)
                 form.find('#gCryptAlertEncryptNoUser').show();
             else{
                 publicKeys.push(openpgp.read_publicKey(response[recipient])[0]);
@@ -216,11 +216,11 @@ function getMessage(objectContext){
     msg = msg.replace(/(<br><\/div>)/g,'\n'); //we need to ensure that extra spaces aren't added where gmail puts a <div><br></div>
     msg = msg.replace(/(<\/div>)/g,'\n');
     msg = msg.replace(/(<br>)/g,'\n');
-    
+
     //originally stripped just <br> and <wbr> but gmail can add other things such as <div class="im">
     msg = msg.replace(/<(.*?)>/g,'');
     msg = openpgp.read_message(msg);
-    if(msg == null){
+    if(msg === null){
         $(objectContext).parents('div[class="gE iv gt"]').append(gCryptAlerts.gCryptAlertDecryptNoMessage.html);
         return;
     }
@@ -231,8 +231,8 @@ function getMessage(objectContext){
 function decryptHelper(msg, material, sessionKey, objectContext, publicKeys){
     try{
         var decryptResult = msg.decryptAndVerifySignature(material, sessionKey, publicKeys);
-        if(decryptResult.text != ''){
-            if(decryptResult.validSignatures.indexOf(false)>=0 || decryptResult.validSignatures.length == 0){
+        if(decryptResult.text !== ''){
+            if(decryptResult.validSignatures.indexOf(false)>=0 || decryptResult.validSignatures.length === 0){
                 $(objectContext).parents('div[class="gE iv gt"]').append(gCryptAlerts.gCryptUnableVerifySignature.html);
             }
             else{
@@ -266,7 +266,7 @@ function decrypt(event){
                 var key = openpgp.read_privateKey(response[r].armored)[0];
                 if(!key.hasUnencryptedSecretKeyData){
                     if(!key.decryptSecretMPIs(password))
-                   	    $(objectContext).parents('div[class="gE iv gt"]').append(gCryptAlerts.gCryptAlertPassword.html);
+                        $(objectContext).parents('div[class="gE iv gt"]').append(gCryptAlerts.gCryptAlertPassword.html);
                 }
                 var material = {key: key , keymaterial: key.privateKeyPacket};
                 for(var sessionKeyIterator in msg.sessionKeys){
@@ -329,17 +329,17 @@ function composeIntercept(ev) {
     if (composeBoxes && composeBoxes.length > 0) {
         composeBoxes.each(function(){
             var composeMenu = $(this).parent().parent().parent();
-            if (composeMenu && composeMenu.length> 0 && composeMenu.find('#gCryptEncrypt').length == 0) {
+            if (composeMenu && composeMenu.length> 0 && composeMenu.find('#gCryptEncrypt').length === 0) {
                 useComposeSubWindows = true;
                 var maxSizeCheck = composeMenu.parent().parent().parent().parent().parent().find('[style*="max-height"]');
                 //We have to check again because of rapidly changing elements
-                if(composeMenu.find('#gCryptEncrypt').length == 0) {
+                if(composeMenu.find('#gCryptEncrypt').length === 0) {
                     //The below logic is for inserting the form into the windows, different behavior for in window compose and popout compose.
                     var encryptionFormOptions = '<span id="gCryptEncrypt" class="btn-group" style="float:right"><a class="btn" href="#" id="encryptAndSign"><img src="'+chrome.extension.getURL("images/encryptIcon.png")+'" width=13 height=13/> Encrypt and Sign</a><a class="btn" href="#" id="encrypt">Encrypt</a><a class="btn" href="#" id="sign">Sign</a></span>';
-                    
+
                     var encryptionForm = '<form class="form-inline" style="float:right"><input type="password" class="input-small" placeholder="password" id="gCryptPasswordEncrypt" style="font-size:12px;margin-top:5px;"></form>';
 
-                    if (maxSizeCheck && maxSizeCheck.length > 0 && maxSizeCheck.css('max-height') == maxSizeCheck.css('height')) {
+                    if (maxSizeCheck && maxSizeCheck.length > 0 && maxSizeCheck.css('max-height') === maxSizeCheck.css('height')) {
                         composeMenu.find('.n1tfz :nth-child(6)').after('<td class="gU" style="min-width: 360px;">' + encryptionFormOptions + '</td><td class="gU">' + encryptionForm + '</td>');
                     }
                     else {
@@ -361,7 +361,7 @@ function composeIntercept(ev) {
     var form = rootElement.find('form');
     var menubar = form.find('td[class="fA"]');
     if(menubar && menubar.length>0){
-        if(menubar.find('#gCryptEncrypt').length == 0){
+        if(menubar.find('#gCryptEncrypt').length === 0){
             menubar.append('<span id="gCryptEncrypt" class="btn-group"><a class="btn" href="#" id="encryptAndSign1"><img src="'+chrome.extension.getURL("images/encryptIcon.png")+'" width=13 height=13/> Encrypt</a><a class="btn dropdown-toggle" data-toggle="dropdown" href="#"><span class="caret"></span></a><ul class="dropdown-menu"><li id="encryptAndSign2"><a href="#">Encrypt (sign)</a></li><li id="encrypt"><a href="#">Encrypt (don\'t sign)</a></li><li id="sign"><a href="#">Sign only</a></li></ul></span><form class="form-inline"><input type="password" class="input-small" placeholder="password" id="gCryptPasswordEncrypt"></form>');
             menubar.find('#encryptAndSign1').click(encryptAndSign);
             menubar.find('#encryptAndSign2').click(encryptAndSign);
@@ -373,9 +373,9 @@ function composeIntercept(ev) {
             });
             form.find('.eJ').append(gCryptAlerts.gCryptAlertPassword.html);
             form.find('.eJ').append(gCryptAlerts.gCryptAlertEncryptNoUser.html);
-            
+
             chrome.extension.sendRequest({method: 'getOption', option: 'stopAutomaticDrafts'}, function(response){
-                if(response == true){
+                if(response === true){
                     stopAutomaticDrafts();
                     }
             });
@@ -386,7 +386,7 @@ function composeIntercept(ev) {
     var viewTitleBar = rootElement.find('td[class="gH acX"]');
     if(viewTitleBar && viewTitleBar.length > 0){
         viewTitleBar.each(function(v){
-            if( $(this).find('#gCryptDecrypt').length == 0){
+            if( $(this).find('#gCryptDecrypt').length === 0){
                 $(this).prepend('<span id="gCryptDecrypt"><a class="btn" href="#" id="decrypt"><img src="'+chrome.extension.getURL("images/decryptIcon.png")+'" width=13 height=13/ >Decrypt</a></span>');
                 $(this).find('#decrypt').click(decrypt);
                 $(this).append('<form class="form-inline"><input type="password" class="input-small" placeholder="password" id="gCryptPasswordDecrypt"></form>');
@@ -403,7 +403,7 @@ function composeIntercept(ev) {
     rootElement.find('#gCryptAlertEncryptNoUser').hide();
 
     var gmailCryptModal = $('#gCryptModal');
-    if(gmailCryptModal && gmailCryptModal.length == 0) {
+    if(gmailCryptModal && gmailCryptModal.length === 0) {
       $('.aAU').append('<div id="gCryptModal" class="modal hide fade" tabindex=-1 role="dialog"><div class="modal-header">' +
                    '<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>' +
                    '<h3>Mymail-Crypt for Gmail</h3></div><div id="gCryptModalBody" class="modal-body"></div></div>');
@@ -416,7 +416,7 @@ var insertListener = function(event) {
   if (event.animationName == "composeInserted") {
     composeIntercept();
   }
-}
+};
 
 function onLoadAnimation() {
     document.addEventListener("webkitAnimationStart", insertListener, false);

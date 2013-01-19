@@ -1,7 +1,7 @@
-/* This is the background page for gmail-crypt that communicates between gmail and the extension. 
- * 
+/* This is the background page for gmail-crypt that communicates between gmail and the extension.
+ *
  * Copyright 2011 Sean Colyer, <sean @ colyer . name>
- * This program is licensed under the GNU General Public License Version 2. 
+ * This program is licensed under the GNU General Public License Version 2.
  * See included "LICENSE" file for details.
  */
 
@@ -20,7 +20,7 @@ chrome.extension.onRequest.addListener(function(request,sender,sendResponse){
                 }
             }
             catch(e){
-            
+
             }
         }
         sendResponse(keys);

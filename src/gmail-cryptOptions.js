@@ -3,13 +3,13 @@
    var generateKeyFormToggle = true;
    
    function showMessages(msg){
-        debugger;
-    }
+    console.log(msg); 
+   }
    
    function generateKeyPair(){
         $('.alert').hide();
         var form = $('#generateKeyPairForm');
-        var keyPair = openpgp.generate_key_pair(1,parseInt(form.find('#numBits').val()), form.find('#name').val() + ' <' + form.find('#email').val() + '>', form.find('#password').val());
+        var keyPair = openpgp.generate_key_pair(1,parseInt(form.find('#numBits').val(), 10), form.find('#name').val() + ' <' + form.find('#email').val() + '>', form.find('#password').val());
         openpgp.keyring.importPrivateKey(keyPair.privateKeyArmored, form.find('#password').val());
         openpgp.keyring.importPublicKey(keyPair.publicKeyArmored);
         openpgp.keyring.store();
@@ -117,7 +117,7 @@
    function loadOptions(){
         var gCryptSettings = openpgp.config.config.gCrypt;
         if(!gCryptSettings){
-            return
+            return;
         }
         if(gCryptSettings.stopAutomaticDrafts){
             $('#stopAutomaticDrafts').attr('checked', true);
