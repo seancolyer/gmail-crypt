@@ -11,17 +11,17 @@ var rootElement = $(document);
 
 //Grouping all alerts in one place, easy to access. Consider moving .html to a format function, since they are heavily pattern based.
 var gCryptAlerts = {
-  gCryptAlertDecryptNoMessage : {type: 'error', text: 'No OpenPGP message was found.',
+  gCryptAlertDecryptNoMessage : {id: 'gCryptAlertDecryptNoMessage', type: 'error', text: 'No OpenPGP message was found.',
     html: '<div class="alert alert-error" id="gCryptAlertDecryptNoMessage">No OpenPGP message was found.</div>' },
-  gCryptUnableVerifySignature: {type: '', text: 'Mymail-Crypt For Gmail was unable to verify this message.',
+  gCryptUnableVerifySignature: {id: 'gCryptUnableVerifySignature', type: '', text: 'Mymail-Crypt For Gmail was unable to verify this message.',
     html: '<div class="alert" id="gCryptUnableVerifySignature">Mymail-Crypt For Gmail was unable to verify this message.</div>' },
-  gCryptAbleVerifySignature: {type: 'success', text: 'Mymail-Crypt For Gmail was able to verify this message.',
+  gCryptAbleVerifySignature: {id: 'gCryptAbleVerifySignature', type: 'success', text: 'Mymail-Crypt For Gmail was able to verify this message.',
     html: '<div class="alert alert-success" id="gCryptUnableVerifySignature">Mymail-Crypt For Gmail was able to verify this message.</div>'},
-  gCryptAlertPassword: {type: 'error', text: 'Mymail-Crypt For Gmail was unable to read your key. Is your password correct?',
+  gCryptAlertPassword: {id: 'gCryptAlertPassword', type: 'error', text: 'Mymail-Crypt For Gmail was unable to read your key. Is your password correct?',
     html: '<div class="alert alert-error" id="gCryptAlertPassword">Mymail-Crypt For Gmail was unable to read your key. Is your password correct?</div>'},
-  gCryptAlertDecrypt: {type: 'error', text: 'Mymail-Crypt for Gmail was unable to decrypt this message.',
+  gCryptAlertDecrypt: {id: 'gCryptAlertDecrypt', type: 'error', text: 'Mymail-Crypt for Gmail was unable to decrypt this message.',
     html: '<div class="alert alert-error" id="gCryptAlertDecrypt">Mymail-Crypt for Gmail was unable to decrypt this message.</div>'},
-  gCryptAlertEncryptNoUser: {type: 'error', text: 'Unable to find a key for the given user. Have you inserted their public key?',
+  gCryptAlertEncryptNoUser: {id: 'gCryptAlertEncryptNoUser', type: 'error', text: 'Unable to find a key for the given user. Have you inserted their public key?',
     html: '<div class="alert alert-error" id="gCryptAlertEncryptNoUser">Unable to find a key for the given user. Have you inserted their public key?</div>'}
 };
 
@@ -131,25 +131,29 @@ function encryptAndSign(event){
         privKey = openpgp.read_privateKey(response[0].armored)[0];
         if(!privKey.decryptSecretMPIs()){
             var password = rootElement.find('#gCryptPasswordEncrypt').val();
-            if(!privKey.decryptSecretMPIs(password))
-                form.find('#gCryptAlertPassword').show();
+            if(!privKey.decryptSecretMPIs(password)) {
+                showAlert(gCryptAlerts.gCryptAlertPassword, form);
+                return;
+            }
         }
         var recipients = getRecipients(form, event);
         if(recipients.length === 0){
-            form.find('#gCryptAlertEncryptNoUser').show();
+            showAlert(gCryptAlert.gCryptAlertEncryptNoUser, form);
             return;
         }
         chrome.extension.sendRequest({method: "getPublicKeys",emails:recipients}, function(response){
             var responseKeys = Object.keys(response);
             if(responseKeys.length === 0){
-                form.find('#gCryptAlertEncryptNoUser').show();
+                showAlert(gCryptAlerts.gCryptAlertEncryptNoUser, form);
                 return;
             }
             var publicKeys = [];
             for(var r in responseKeys){
                 var recipient = responseKeys[r];
-                if(response[recipient].length === 0)
-                    form.find('#gCryptAlertEncryptNoUser').show();
+                if(response[recipient].length === 0) {
+                    showAlert(gCryptAlerts.gCryptAlertEncryptNoUser, form);
+                    return;
+                }
                 else{
                     publicKeys.push(openpgp.read_publicKey(response[recipient])[0]);
                 }
@@ -167,20 +171,21 @@ function encrypt(event){
 
     var recipients = getRecipients(form, event);
     if(recipients.length === 0){
-        form.find('#gCryptAlertEncryptNoUser').show();
+        showAlert(gCryptAlerts.gCryptAlertEncryptNoUser);
         return;
     }
     chrome.extension.sendRequest({method: "getPublicKeys",emails:recipients}, function(response){
         var responseKeys = Object.keys(response);
         if(responseKeys.length === 0){
-            form.find('#gCryptAlertEncryptNoUser').show();
+            showAlert(gCryptAlerts.gCryptAlertEncryptNoUser, form);
             return;
         }
         var publicKeys = [];
         for(var r in responseKeys){
-                var recipient = responseKeys[r];
-                if(response[recipient].length === 0)
-                form.find('#gCryptAlertEncryptNoUser').show();
+            var recipient = responseKeys[r];
+            if(response[recipient].length === 0) {
+                showAlert(gCryptAlerts.gCryptAlertEncryptNoUser, form);
+            }
             else{
                 publicKeys.push(openpgp.read_publicKey(response[recipient])[0]);
             }
@@ -199,8 +204,9 @@ function sign(event){
         privKey = openpgp.read_privateKey(response[0].armored)[0];
         if(!privKey.decryptSecretMPIs()){
             var password = rootElement.find('#gCryptPasswordEncrypt').val();
-            if(!privKey.decryptSecretMPIs(password))
-                form.find('#gCryptAlertPassword').show();
+            if(!privKey.decryptSecretMPIs(password)) {
+                showAlert(gCryptAlerts.gCryptAlertPassword, form);
+            }
         }
         var ciphertext = openpgp.write_signed_message(privKey,contents.msg);
         writeContents(contents,ciphertext);
@@ -316,8 +322,18 @@ function stopAutomaticDrafts(){
     redrawSaveDraftButton();
 }
 
+function showAlert(alert, form) {
+    if(form) {
+        var alertInForm = form.find('#'+alert.id);
+        if (alertInForm && alertInForm.length > 0) {
+            alertInForm.show();
+            return;
+        }
+    }
+    showModalAlert(alert.html);
+}
+
 function showModalAlert(message) {
-  debugger;
   $('#gCryptModalBody').html(message);
   $('#gCryptModal').modal('show');
 }
@@ -404,9 +420,12 @@ function composeIntercept(ev) {
 
     var gmailCryptModal = $('#gCryptModal');
     if(gmailCryptModal && gmailCryptModal.length === 0) {
-      $('.aAU').append('<div id="gCryptModal" class="modal hide fade" tabindex=-1 role="dialog"><div class="modal-header">' +
+        $('.aAU').append('<div id="gCryptModal" class="modal hide fade" tabindex=-1 role="dialog"><div class="modal-header">' +
                    '<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>' +
                    '<h3>Mymail-Crypt for Gmail</h3></div><div id="gCryptModalBody" class="modal-body"></div></div>');
+        $('#gCryptModal').click(function() {
+            $('#gCryptModal').modal('hide');
+        });
     }
 }
 
