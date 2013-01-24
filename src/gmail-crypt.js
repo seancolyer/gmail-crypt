@@ -66,7 +66,7 @@ function getContents(form, event){
         msg = msg.replace(/(<\/div>)/g,'');
         return {g_editable: g_editable, msg: msg};
     }
-    var textarea = $('textarea[name="body"]',form);
+    var textarea = $('textarea[spellcheck="true"]',form);
     var iframe = $('iframe',form).contents().find('body');
     try{
         msg = iframe.html().replace(/(<div>)/g,'\n');
