@@ -99,6 +99,11 @@
         } else {
             gCryptSettings.stopAutomaticDrafts = false;
         }
+        if($('#includeMyself:checked').length == 1){
+            gCryptSettings.includeMyself = true;
+        } else {
+            gCryptSettings.includeMyself = false;
+        }
         if($('#showComment:checked').length == 1){
             openpgp.config.config.show_comment = true;
         } else {
@@ -116,16 +121,16 @@
    
    function loadOptions(){
         var gCryptSettings = openpgp.config.config.gCrypt;
-        if(!gCryptSettings){
-            return;
-        }
-        if(gCryptSettings.stopAutomaticDrafts){
+        if (gCryptSettings && gCryptSettings.stopAutomaticDrafts){
             $('#stopAutomaticDrafts').attr('checked', true);
         }
-        if(openpgp.config.config.show_comment){
+        if (gCryptSettings && gCryptSettings.includeMyself) {
+            $('#includeMyself').attr('checked', true);
+        }
+        if (openpgp.config.config.show_comment){
             $('#showComment').attr('checked', true);
         }
-        if(openpgp.config.config.show_version){
+        if (openpgp.config.config.show_version){
             $('#showVersion').attr('checked', true);
         }
    }

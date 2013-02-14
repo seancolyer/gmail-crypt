@@ -23,6 +23,12 @@ chrome.extension.onRequest.addListener(function(request,sender,sendResponse){
 
             }
         }
+        if (request.myKeyId) {
+            debugger;
+            var myKey = openpgp.keyring.getPublicKeysForKeyId(request.myKeyId)[0];
+            var myEmail = gCryptUtil.parseUser(myKey.obj.userIds[0].text).userEmail;
+            keys[myEmail] = myKey.armored;
+        }
         sendResponse(keys);
     }
     if(request.method == "getPublicKey"){

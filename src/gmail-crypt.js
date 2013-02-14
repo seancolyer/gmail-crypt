@@ -99,14 +99,22 @@ function writeContents(contents, message){
 
 }
 
-function getRecipients(form, event){
-    var recipients = [];
+//TODO this is being added in order to support mutli-tenancy.
+function getMyKeyId(callback){
+    chrome.extension.sendRequest({method: "getPrivateKeys"}, function(response){
+        callback(response[0].keyId);
+    });
+}
+
+function getRecipients(form, event, callback){
+    var recipients = {};
+    recipients.email = [];
     if (useComposeSubWindows) {
         //for new in window compose gmail window
         var emailsParent = $(event.currentTarget).parents().find('[email]').first().parent().parent();
         if (emailsParent && emailsParent.length > 0) {
             emailsParent.find('[email]').each(function() {
-                recipients.push($(this).attr("email"));
+                recipients.email.push($(this).attr("email"));
             });
         }
     }
@@ -115,11 +123,20 @@ function getRecipients(form, event){
     var to = form.find('textarea[name="to"]').val().split(',').concat(form.find('textarea[name="cc"]').val().split(','));
     for(var recipient in to){
         if(to[recipient].length > 2)
-            recipients.push(gCryptUtil.parseUser(to[recipient]).userEmail);
+            recipients.email.push(gCryptUtil.parseUser(to[recipient]).userEmail);
         }
     }
-
-    return recipients;
+    chrome.extension.sendRequest({method: 'getOption', option: 'includeMyself'}, function(response){
+        if(response === true){
+            getMyKeyId(function(myKeyIdResponse){
+                recipients.myKeyId = myKeyIdResponse;
+                callback(recipients);
+            });
+        }
+        else {
+            callback(recipients);
+        }
+    });
 }
 
 function encryptAndSign(event){
@@ -136,12 +153,55 @@ function encryptAndSign(event){
                 return;
             }
         }
-        var recipients = getRecipients(form, event);
-        if(recipients.length === 0){
-            showAlert(gCryptAlert.gCryptAlertEncryptNoUser, form);
+        getRecipients(form, event, function(recipients){
+           if(recipients.email.length === 0){
+                showAlert(gCryptAlert.gCryptAlertEncryptNoUser, form);
+                return;
+            }
+            var myKeyId;
+            if (recipients.myKeyId) {
+                myKeyId = recipients.myKeyId;
+            }
+            chrome.extension.sendRequest({method: "getPublicKeys",emails: recipients.email, myKeyId: myKeyId }, function(response){
+                var responseKeys = Object.keys(response);
+                if(responseKeys.length === 0){
+                    showAlert(gCryptAlerts.gCryptAlertEncryptNoUser, form);
+                    return;
+                }
+                var publicKeys = [];
+                for(var r in responseKeys){
+                    var recipient = responseKeys[r];
+                    if(response[recipient].length === 0) {
+                        showAlert(gCryptAlerts.gCryptAlertEncryptNoUser, form);
+                        return;
+                    }
+                    else{
+                        publicKeys.push(openpgp.read_publicKey(response[recipient])[0]);
+                    }
+                }
+                var ciphertext = openpgp.write_signed_and_encrypted_message(privKey,publicKeys,contents.msg);
+                writeContents(contents, ciphertext);
+                });
+            });
+        });
+}
+
+function encrypt(event){
+    var form = rootElement.find('form');
+    form.find('.alert').hide();
+    var contents = getContents(form, event);
+
+    
+    getRecipients(form, event, function(recipients){
+        if(recipients.email.length === 0){
+            showAlert(gCryptAlerts.gCryptAlertEncryptNoUser);
             return;
         }
-        chrome.extension.sendRequest({method: "getPublicKeys",emails:recipients}, function(response){
+        var myKeyId;
+        if (recipients.myKeyId) {
+            myKeyId = recipients.myKeyId;
+        }
+        chrome.extension.sendRequest({method: "getPublicKeys",emails:recipients.email, myKeyId:myKeyId}, function(response){
             var responseKeys = Object.keys(response);
             if(responseKeys.length === 0){
                 showAlert(gCryptAlerts.gCryptAlertEncryptNoUser, form);
@@ -152,47 +212,15 @@ function encryptAndSign(event){
                 var recipient = responseKeys[r];
                 if(response[recipient].length === 0) {
                     showAlert(gCryptAlerts.gCryptAlertEncryptNoUser, form);
-                    return;
                 }
                 else{
                     publicKeys.push(openpgp.read_publicKey(response[recipient])[0]);
                 }
             }
-            var ciphertext = openpgp.write_signed_and_encrypted_message(privKey,publicKeys,contents.msg);
+            var ciphertext = openpgp.write_encrypted_message(publicKeys,contents.msg);
             writeContents(contents, ciphertext);
-            });
         });
-}
-
-function encrypt(event){
-    var form = rootElement.find('form');
-    form.find('.alert').hide();
-    var contents = getContents(form, event);
-
-    var recipients = getRecipients(form, event);
-    if(recipients.length === 0){
-        showAlert(gCryptAlerts.gCryptAlertEncryptNoUser);
-        return;
-    }
-    chrome.extension.sendRequest({method: "getPublicKeys",emails:recipients}, function(response){
-        var responseKeys = Object.keys(response);
-        if(responseKeys.length === 0){
-            showAlert(gCryptAlerts.gCryptAlertEncryptNoUser, form);
-            return;
-        }
-        var publicKeys = [];
-        for(var r in responseKeys){
-            var recipient = responseKeys[r];
-            if(response[recipient].length === 0) {
-                showAlert(gCryptAlerts.gCryptAlertEncryptNoUser, form);
-            }
-            else{
-                publicKeys.push(openpgp.read_publicKey(response[recipient])[0]);
-            }
-        }
-        var ciphertext = openpgp.write_encrypted_message(publicKeys,contents.msg);
-        writeContents(contents, ciphertext);
-        });
+    });
 }
 
 function sign(event){
@@ -441,7 +469,7 @@ function onLoadAnimation() {
     document.addEventListener("webkitAnimationStart", insertListener, false);
     openpgp.init();
     chrome.extension.sendRequest({method: 'getConfig'}, function(response){
-        openpgp.config = response;
+      openpgp.config = response;
     });
 }
 
