@@ -57,9 +57,12 @@ chrome.extension.onRequest.addListener(function(request,sender,sendResponse){
     }
 });
 
-
 function onLoad(){
     openpgp.init();
 }
 
 document.onload = onLoad();
+
+function showMessages(str){
+  console.log(str);
+}

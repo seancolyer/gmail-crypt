@@ -111,7 +111,7 @@ function getRecipients(form, event, callback){
     recipients.email = [];
     if (useComposeSubWindows) {
         //for new in window compose gmail window
-        var emailsParent = $(event.currentTarget).parents().find('[email]').first().parent().parent();
+        var emailsParent = $(event.currentTarget).parents().find('[email]').last().parent().parent();
         if (emailsParent && emailsParent.length > 0) {
             emailsParent.find('[email]').each(function() {
                 recipients.email.push($(this).attr("email"));
