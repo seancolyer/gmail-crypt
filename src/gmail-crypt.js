@@ -9,22 +9,6 @@ var openpgpLog;
 var formId = ''; //We use this to store the draft form ID.
 var rootElement = $(document);
 
-//Grouping all alerts in one place, easy to access. Consider moving .html to a format function, since they are heavily pattern based.
-var gCryptAlerts = {
-  gCryptAlertDecryptNoMessage : {id: 'gCryptAlertDecryptNoMessage', type: 'error', text: 'No OpenPGP message was found.',
-    html: '<div class="alert alert-error" id="gCryptAlertDecryptNoMessage">No OpenPGP message was found.</div>' },
-  gCryptUnableVerifySignature: {id: 'gCryptUnableVerifySignature', type: '', text: 'Mymail-Crypt For Gmail was unable to verify this message.',
-    html: '<div class="alert" id="gCryptUnableVerifySignature">Mymail-Crypt For Gmail was unable to verify this message.</div>' },
-  gCryptAbleVerifySignature: {id: 'gCryptAbleVerifySignature', type: 'success', text: 'Mymail-Crypt For Gmail was able to verify this message.',
-    html: '<div class="alert alert-success" id="gCryptUnableVerifySignature">Mymail-Crypt For Gmail was able to verify this message.</div>'},
-  gCryptAlertPassword: {id: 'gCryptAlertPassword', type: 'error', text: 'Mymail-Crypt For Gmail was unable to read your key. Is your password correct?',
-    html: '<div class="alert alert-error" id="gCryptAlertPassword">Mymail-Crypt For Gmail was unable to read your key. Is your password correct?</div>'},
-  gCryptAlertDecrypt: {id: 'gCryptAlertDecrypt', type: 'error', text: 'Mymail-Crypt for Gmail was unable to decrypt this message.',
-    html: '<div class="alert alert-error" id="gCryptAlertDecrypt">Mymail-Crypt for Gmail was unable to decrypt this message.</div>'},
-  gCryptAlertEncryptNoUser: {id: 'gCryptAlertEncryptNoUser', type: 'error', text: 'Unable to find a key for the given user. Have you inserted their public key?',
-    html: '<div class="alert alert-error" id="gCryptAlertEncryptNoUser">Unable to find a key for the given user. Have you inserted their public key?</div>'}
-};
-
 function showMessages(str){
   console.log(str);
 }
@@ -106,160 +90,91 @@ function getMyKeyId(callback){
     });
 }
 
-function getRecipients(form, event, callback){
-    var recipients = {};
-    recipients.email = [];
-    if (useComposeSubWindows) {
-        //for new in window compose gmail window
-        var emailsParent = $(event.currentTarget).parents().find('[email]').last().parent().parent();
-        if (emailsParent && emailsParent.length > 0) {
-            emailsParent.find('[email]').each(function() {
-                recipients.email.push($(this).attr("email"));
-            });
-        }
+function getRecipients(form, event){
+  var recipients = {};
+  recipients.email = [];
+  if (useComposeSubWindows) {
+    //for new in window compose gmail window
+    var emailsParent = $(event.currentTarget).parents().find('[email]').last().parent().parent();
+    if (emailsParent && emailsParent.length > 0) {
+      emailsParent.find('[email]').each(function() {
+        recipients.email.push($(this).attr("email"));
+      });
     }
-    else {
+  }
+  else {
     //for old style
     var to = form.find('textarea[name="to"]').val().split(',').concat(form.find('textarea[name="cc"]').val().split(','));
     for(var recipient in to){
-        if(to[recipient].length > 2)
-            recipients.email.push(gCryptUtil.parseUser(to[recipient]).userEmail);
-        }
+      if(to[recipient].length > 2) {
+        recipients.email.push(gCryptUtil.parseUser(to[recipient]).userEmail);
+      }
     }
-    chrome.extension.sendRequest({method: 'getOption', option: 'includeMyself'}, function(response){
-        if(response === true){
-            getMyKeyId(function(myKeyIdResponse){
-                recipients.myKeyId = myKeyIdResponse;
-                callback(recipients);
-            });
-        }
-        else {
-            callback(recipients);
-        }
-    });
+  }
+  return recipients;
 }
 
 function encryptAndSign(event){
-    var form = rootElement.find('form');
-    form.find('.alert').hide();
-    var contents = getContents(form, event);
-    var privKey;
-    chrome.extension.sendRequest({method: "getPrivateKeys"}, function(response){
-        privKey = openpgp.read_privateKey(response[0].armored)[0];
-        if(!privKey.decryptSecretMPIs()){
-            var password = rootElement.find('#gCryptPasswordEncrypt').val();
-            if(!privKey.decryptSecretMPIs(password)) {
-                showAlert(gCryptAlerts.gCryptAlertPassword, form);
-                return;
-            }
-        }
-        getRecipients(form, event, function(recipients){
-           if(recipients.email.length === 0){
-                showAlert(gCryptAlert.gCryptAlertEncryptNoUser, form);
-                return;
-            }
-            var myKeyId;
-            if (recipients.myKeyId) {
-                myKeyId = recipients.myKeyId;
-            }
-            chrome.extension.sendRequest({method: "getPublicKeys",emails: recipients.email, myKeyId: myKeyId }, function(response){
-                var responseKeys = Object.keys(response);
-                if(responseKeys.length === 0){
-                    showAlert(gCryptAlerts.gCryptAlertEncryptNoUser, form);
-                    return;
-                }
-                var publicKeys = [];
-                for(var r in responseKeys){
-                    var recipient = responseKeys[r];
-                    if(response[recipient].length === 0) {
-                        showAlert(gCryptAlerts.gCryptAlertEncryptNoUser, form);
-                        return;
-                    }
-                    else{
-                        publicKeys.push(openpgp.read_publicKey(response[recipient])[0]);
-                    }
-                }
-                var ciphertext = openpgp.write_signed_and_encrypted_message(privKey,publicKeys,contents.msg);
-                writeContents(contents, ciphertext);
-                });
-            });
-        });
+  var form = rootElement.find('form');
+  form.find('.alert').hide();
+  var contents = getContents(form, event);
+  var privKey;
+  var password = rootElement.find('#gCryptPasswordEncrypt').val();
+  var recipients = getRecipients(form, event);
+  chrome.extension.sendRequest({method: "encryptAndSign", recipients: recipients, message: contents.msg, password: password}, function(response){
+    if(response && response.type && response.type == "error") {
+      showAlert(response, form);
+    }
+    writeContents(contents, response);
+  });
 }
 
 function encrypt(event){
-    var form = rootElement.find('form');
-    form.find('.alert').hide();
-    var contents = getContents(form, event);
+  var form = rootElement.find('form');
+  form.find('.alert').hide();
+  var contents = getContents(form, event);
+  var recipients = getRecipients(form, event);
 
-    
-    getRecipients(form, event, function(recipients){
-        if(recipients.email.length === 0){
-            showAlert(gCryptAlerts.gCryptAlertEncryptNoUser);
-            return;
-        }
-        var myKeyId;
-        if (recipients.myKeyId) {
-            myKeyId = recipients.myKeyId;
-        }
-        chrome.extension.sendRequest({method: "getPublicKeys",emails:recipients.email, myKeyId:myKeyId}, function(response){
-            var responseKeys = Object.keys(response);
-            if(responseKeys.length === 0){
-                showAlert(gCryptAlerts.gCryptAlertEncryptNoUser, form);
-                return;
-            }
-            var publicKeys = [];
-            for(var r in responseKeys){
-                var recipient = responseKeys[r];
-                if(response[recipient].length === 0) {
-                    showAlert(gCryptAlerts.gCryptAlertEncryptNoUser, form);
-                }
-                else{
-                    publicKeys.push(openpgp.read_publicKey(response[recipient])[0]);
-                }
-            }
-            var ciphertext = openpgp.write_encrypted_message(publicKeys,contents.msg);
-            writeContents(contents, ciphertext);
-        });
-    });
+  chrome.extension.sendRequest({method: "encrypt", recipients: recipients, message: contents.msg}, function(response){
+    if(response && response.type && response.type == "error") {
+      showAlert(response, form);
+    }
+    writeContents(contents, response);
+  });
 }
 
 function sign(event){
-    var form = rootElement.find('form');
-    form.find('.alert').hide();
-    var contents = getContents(form, event);
-    var privKey;
-    chrome.extension.sendRequest({method: "getPrivateKeys"}, function(response){
-        privKey = openpgp.read_privateKey(response[0].armored)[0];
-        if(!privKey.decryptSecretMPIs()){
-            var password = rootElement.find('#gCryptPasswordEncrypt').val();
-            if(!privKey.decryptSecretMPIs(password)) {
-                showAlert(gCryptAlerts.gCryptAlertPassword, form);
-            }
-        }
-        var ciphertext = openpgp.write_signed_message(privKey,contents.msg);
-        writeContents(contents,ciphertext);
-        });
+  var form = rootElement.find('form');
+  form.find('.alert').hide();
+  var contents = getContents(form, event);
+  var password = rootElement.find('#gCryptPasswordEncrypt').val();
+
+  chrome.extension.sendRequest({method: "sign", message: contents.msg, password: password}, function(response){
+    if(response && response.type && response.type == "error") {
+      showAlert(response, form);
+    }
+    writeContents(contents, response);
+  });
 }
 
 function getMessage(objectContext){
-    var msg;
-    //we need to use regex here because gmail will automatically form \n into <br> or <wbr>, strip these out
-    //I'm not entirely happy with these replace statements, perhaps there can be a different approach
-    element = $(event.currentTarget).closest('div[class="gs"]').find('[class*="ii gt"] div');
-    msg = element.html().replace(/\n/g,"");
-    msg = msg.replace(/(<br><\/div>)/g,'\n'); //we need to ensure that extra spaces aren't added where gmail puts a <div><br></div>
-    msg = msg.replace(/(<\/div>)/g,'\n');
-    msg = msg.replace(/(<br>)/g,'\n');
+  var msg;
+  //we need to use regex here because gmail will automatically form \n into <br> or <wbr>, strip these out
+  //I'm not entirely happy with these replace statements, perhaps there can be a different approach
+  element = $(event.currentTarget).closest('div[class="gs"]').find('[class*="ii gt"] div');
+  msg = element.html().replace(/\n/g,"");
+  msg = msg.replace(/(<br><\/div>)/g,'\n'); //we need to ensure that extra spaces aren't added where gmail puts a <div><br></div>
+  msg = msg.replace(/(<\/div>)/g,'\n');
+  msg = msg.replace(/(<br>)/g,'\n');
 
-    //originally stripped just <br> and <wbr> but gmail can add other things such as <div class="im">
-    msg = msg.replace(/<(.*?)>/g,'');
-    msg = openpgp.read_message(msg);
-    if(msg === null){
-        $(objectContext).parents('div[class="gE iv gt"]').append(gCryptAlerts.gCryptAlertDecryptNoMessage.html);
-        return;
-    }
-    return [element, msg[0]];
-
+  //originally stripped just <br> and <wbr> but gmail can add other things such as <div class="im">
+  msg = msg.replace(/<(.*?)>/g,'');
+  msg = openpgp.read_message(msg);
+  if(msg === null){
+      $(objectContext).parents('div[class="gE iv gt"]').append(gCryptAlerts.gCryptAlertDecryptNoMessage.html);
+      return;
+  }
+  return [element, msg[0]];
 }
 
 function decryptHelper(msg, material, sessionKey, objectContext, publicKeys){
