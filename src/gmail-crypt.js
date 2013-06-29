@@ -169,31 +169,7 @@ function getMessage(objectContext){
 
   //originally stripped just <br> and <wbr> but gmail can add other things such as <div class="im">
   msg = msg.replace(/<(.*?)>/g,'');
-  msg = openpgp.read_message(msg);
-  if(msg === null){
-      $(objectContext).parents('div[class="gE iv gt"]').append(gCryptAlerts.gCryptAlertDecryptNoMessage.html);
-      return;
-  }
-  return [element, msg[0]];
-}
-
-function decryptHelper(msg, material, sessionKey, objectContext, publicKeys){
-    try{
-        var decryptResult = msg.decryptAndVerifySignature(material, sessionKey, publicKeys);
-        if(decryptResult.text !== ''){
-            if(decryptResult.validSignatures.indexOf(false)>=0 || decryptResult.validSignatures.length === 0){
-                $(objectContext).parents('div[class="gE iv gt"]').append(gCryptAlerts.gCryptUnableVerifySignature.html);
-            }
-            else{
-                $(objectContext).parents('div[class="gE iv gt"]').append(gCryptAlerts.gCryptAbleVerifySignature.html);
-            }
-            element.html(decryptResult.text.replace(/\n/g,'<br>'));
-            return true;
-            }
-        }
-    catch(e){ //This means that the initial key is not the one we need
-    }
-    return false;
+  return [element, msg];
 }
 
 function decrypt(event){
@@ -204,35 +180,13 @@ function decrypt(event){
     var element = setup[0];
     var msg = setup[1];
     var senderEmail = $(objectContext).parents('div[class="gE iv gt"]').find('span [email]').attr('email');
-    chrome.extension.sendRequest({method: "getPublicKey",email:senderEmail}, function(response){
-        var publicKeys = response;
-        //We have to re-read the armored public key here, I think Chrome walled garden is changing the response object, forcing us to do this.
-        for(var r in response){
-            publicKeys[r].obj = openpgp.read_publicKey(response[r].armored)[0];
-        }
-        chrome.extension.sendRequest({method: "getPrivateKeys"}, function(response){
-            for(var r = 0; r<response.length;r++){
-                var key = openpgp.read_privateKey(response[r].armored)[0];
-                if(!key.hasUnencryptedSecretKeyData){
-                    if(!key.decryptSecretMPIs(password))
-                        $(objectContext).parents('div[class="gE iv gt"]').append(gCryptAlerts.gCryptAlertPassword.html);
-                }
-                var material = {key: key , keymaterial: key.privateKeyPacket};
-                for(var sessionKeyIterator in msg.sessionKeys){
-                    var sessionKey = msg.sessionKeys[sessionKeyIterator];
-                    if(decryptHelper(msg, material, sessionKey, objectContext, publicKeys))
-                        return;
-                    for (var j = 0; j < key.subKeys.length; j++) {
-                        keymat = { key: key, keymaterial: key.subKeys[j]};
-                        if(!keymat.keymaterial.hasUnencryptedSecretKeyData)
-                            keymat.keymaterial.decryptSecretMPIs(password);
-                        if(decryptHelper(msg, keymat, sessionKey, objectContext, publicKeys))
-                            return;
-                        }
-                    }
-                }
-            $(objectContext).parents('div[class="gE iv gt"]').append(gCryptAlerts.gCryptAlertDecrypt.html);
-            });
+    chrome.extension.sendRequest({method: "decrypt", senderEmail:senderEmail, msg: msg, password: password}, function(response){
+      $.each(response.status, function(key, status) {
+        $(objectContext).parents('div[class="gE iv gt"]').append(status.html);
+      });
+      if (response.decrypted) {
+        element.html(response.text.replace(/\n/g,'<br>'));
+      }
     });
     }
 
