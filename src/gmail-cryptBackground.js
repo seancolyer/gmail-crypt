@@ -231,12 +231,12 @@ chrome.extension.onRequest.addListener(function(request,sender,sendResponse){
       result = decrypt(request.senderEmail, request.msg, request.password);
       sendResponse(result);
     }
-
-    if(request.method == "getAllPublicKeys"){
-        sendResponse(openpgp.keyring.publicKeys);
+    if(request.method == "getOption"){
+      result = getOption(request.option);
+      sendResponse(result);
     }
-    if(request.method == "getPublicKey"){
-        sendResponse();
+    if(request.method == "getConfig"){
+        sendResponse(openpgp.config);
     }
     else{
     }

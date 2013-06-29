@@ -83,13 +83,6 @@ function writeContents(contents, message){
 
 }
 
-//TODO this is being added in order to support mutli-tenancy.
-function getMyKeyId(callback){
-    chrome.extension.sendRequest({method: "getPrivateKeys"}, function(response){
-        callback(response[0].keyId);
-    });
-}
-
 function getRecipients(form, event){
   var recipients = {};
   recipients.email = [];
@@ -198,12 +191,13 @@ function verifySignature(){
     var to = gCryptUtil.parseUser(form.find('textarea[name="to"]').val()).userEmail;
     var contents = form.find('iframe[class="Am Al editable"]')[0].contentDocument.body;
     //TODO: this should be updated to only query for certain public keys
-    chrome.extension.sendRequest({method: "getAllPublicKeys"}, function(response){
+    /*chrome.extension.sendRequest({method: "getAllPublicKeys"}, function(response){
         for(var r = 0; r < response.length; r++){
             var pubKey = openpgp.read_publicKey(response[r].armored);
             //openpgp.verifySignature();
             }
         });
+       */
     }
 
 function stopAutomaticDrafts(){
