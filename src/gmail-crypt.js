@@ -1,43 +1,37 @@
 /* This is the general class for gmail-crypt that runs within gmail context.
  *
- * Copyright 2011,2012 Sean Colyer, <sean @ colyer . name>
+ * Copyright 2011 - 2013 Sean Colyer, <sean @ colyer . name>
  * This program is licensed under the GNU General Public License Version 2.
  * See included "LICENSE" file for details.
  */
 
 var openpgpLog;
-var formId = ''; //We use this to store the draft form ID.
 var rootElement = $(document);
 
 function showMessages(str){
   console.log(str);
 }
 
-function clearAndSave(){
-    rootElement.find('#gCryptForm').find('iframe').contents().find('body').text('');
-    saveDraft();
+function clearAndSave(event){
+  //Find the related compose box, and blank out, then proceed as if normal closing.
+  //TODO could probably clean this up to be more DRY
+  $(event.target).parents('[class="nH Hd"]').find('[g_editable]').html('');
+  saveDraft(event);
 }
 
-function saveDraft(){
-    var form = rootElement.find('#gCryptForm');
-    form.attr('id', formId);
-    rootElement.find('div[class="dW E"] > :first-child > :nth-child(2)').click();
+function saveDraft(event){
+  var form = $(event.target).parents('[class="nH Hd"]').find('form[method="POST"]');
+  form.attr('id', form.attr('old-id'));
+  console.log('here');
+  return true;
 }
 
 function rebindSendButtons(){
-    var gMailButton = rootElement.find('div[class="dW E"] > div > :contains("Send")');
-    gMailButton.mousedown(saveDraft);
-}
+  var sendButtons = rootElement.find('td[class="gU Up"] > div > [role="button"]');
+  sendButtons.mousedown(saveDraft);
 
-function redrawSaveDraftButton(){
-    var gCryptButton = rootElement.find('div[id=gCryptSaveDraft]');
-    var gMailButton = rootElement.find('div[class="dW E"] > div > :contains("Save")');
-    if(gCryptButton.text() != gMailButton.text()){
-        gCryptButton.remove();
-        gMailButton.first().clone().insertAfter(gMailButton).attr('id','gCryptSaveDraft').click(saveDraft).show();
-        gMailButton.hide();
-    }
-    setTimeout(redrawSaveDraftButton, 2000);
+  var closeComposeButtons = rootElement.find('[class="Ha"]');
+  closeComposeButtons.mousedown(clearAndSave);
 }
 
 function getContents(form, event){
@@ -166,22 +160,22 @@ function getMessage(objectContext){
 }
 
 function decrypt(event){
-    var password = $(this).parent().parent().find('form[class="form-inline"] input[type="password"]').val();
-    rootElement.find('.alert').hide();
-    var objectContext = this;
-    var setup = getMessage(objectContext);
-    var element = setup[0];
-    var msg = setup[1];
-    var senderEmail = $(objectContext).parents('div[class="gE iv gt"]').find('span [email]').attr('email');
-    chrome.extension.sendRequest({method: "decrypt", senderEmail:senderEmail, msg: msg, password: password}, function(response){
-      $.each(response.status, function(key, status) {
-        $(objectContext).parents('div[class="gE iv gt"]').append(status.html);
-      });
-      if (response.decrypted) {
-        element.html(response.text.replace(/\n/g,'<br>'));
-      }
+  var password = $(this).parent().parent().find('form[class="form-inline"] input[type="password"]').val();
+  rootElement.find('.alert').hide();
+  var objectContext = this;
+  var setup = getMessage(objectContext);
+  var element = setup[0];
+  var msg = setup[1];
+  var senderEmail = $(objectContext).parents('div[class="gE iv gt"]').find('span [email]').attr('email');
+  chrome.extension.sendRequest({method: "decrypt", senderEmail:senderEmail, msg: msg, password: password}, function(response){
+    $.each(response.status, function(key, status) {
+      $(objectContext).parents('div[class="gE iv gt"]').append(status.html);
     });
+    if (response.decrypted) {
+      element.html(response.text.replace(/\n/g,'<br>'));
     }
+  });
+}
 
 //TODO: this has not yet been completed in openpgp.js
 function verifySignature(){
@@ -201,16 +195,22 @@ function verifySignature(){
     }
 
 function stopAutomaticDrafts(){
-    var form = rootElement.find('[class="fN"] > form').first();
-    formId = form.attr('id');
-    //We change the ID of the form so that gmail won't upload drafts.
-    form.attr('id','gCryptForm');
-    rebindSendButtons();
-    //Clear and save when using the left navigation bar
-    rootElement.find('[class="gbqfb"]').mousedown(clearAndSave);
-    //Clear when using the search bar
-    rootElement.find('[class="nH oy8Mbf nn aeN"]').mousedown(clearAndSave);
-    redrawSaveDraftButton();
+  //Find all open compose windows, then set them not to save
+  var forms = rootElement.find('[class="nH Hd"] form[method="POST"]');
+  $.each(forms, function(key, value) {
+    //We change the ID of the form so that gmail won't upload drafts. Store old in "old-id" attribute for restoration.
+    var form = $(value);
+    var formId = form.attr('id');
+    if (formId != 'gCryptForm') {
+      form.attr('old-id', formId);
+      form.attr('id','gCryptForm');
+    }
+  });
+
+  rebindSendButtons();
+  redrawSaveDraftButton();
+  //setTimeout here because we need to check if new windows are opened
+  setTimeout(stopAutomaticDrafts, 2000);
 }
 
 function showAlert(alert, form) {
@@ -230,7 +230,6 @@ function showModalAlert(message) {
 }
 
 var useComposeSubWindows = false;
-
 function composeIntercept(ev) {
     var composeBoxes = $('.n1tfz');
     if (composeBoxes && composeBoxes.length > 0) {
@@ -263,6 +262,11 @@ function composeIntercept(ev) {
                 }
             }
         });
+        chrome.extension.sendRequest({method: 'getOption', option: 'stopAutomaticDrafts'}, function(response){
+          if(response === true){
+            stopAutomaticDrafts();
+          }
+        });
     }
     rootElement = $('#canvas_frame').length > 0 ? $('#canvas_frame').contents() : $(document);
     var form = rootElement.find('form');
@@ -278,14 +282,7 @@ function composeIntercept(ev) {
                 encryptAndSign(event);
                 return false;
             });
-            form.find('.eJ').append(gCryptAlerts.gCryptAlertPassword.html);
-            form.find('.eJ').append(gCryptAlerts.gCryptAlertEncryptNoUser.html);
 
-            chrome.extension.sendRequest({method: 'getOption', option: 'stopAutomaticDrafts'}, function(response){
-                if(response === true){
-                    stopAutomaticDrafts();
-                    }
-            });
         }
     }
 
@@ -306,8 +303,6 @@ function composeIntercept(ev) {
             }
         });
     }
-    rootElement.find('#gCryptAlertPassword').hide();
-    rootElement.find('#gCryptAlertEncryptNoUser').hide();
 
     var gmailCryptModal = $('#gCryptModal');
     if(gmailCryptModal && gmailCryptModal.length === 0) {
