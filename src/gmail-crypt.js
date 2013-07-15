@@ -5,24 +5,31 @@
  * See included "LICENSE" file for details.
  */
 
-var openpgpLog;
 var rootElement = $(document);
 
 function showMessages(str){
   console.log(str);
 }
 
+//This clear and save is specific to the embedded reply composes
+function clearAndSaveReply(event){
+  rootElement.find('[class*="gA gt"] [g_editable]').html('');
+  var replyForm = rootElement.find('[class*="gA gt"] form[method="POST"]');
+  replyForm.attr('id', replyForm.attr('old-id'));
+  $(event.target).find('a').click();
+  return true;
+}
+
 function clearAndSave(event){
   //Find the related compose box, and blank out, then proceed as if normal closing.
   //TODO could probably clean this up to be more DRY
-  $(event.target).parents('[class="nH Hd"]').find('[g_editable]').html('');
+  $(event.target).parents('[class="I5"]').find('[g_editable]').html('');
   saveDraft(event);
 }
 
 function saveDraft(event){
-  var form = $(event.target).parents('[class="nH Hd"]').find('form[method="POST"]');
+  var form = $(event.target).parents('[class="I5"]').find('form[method="POST"]');
   form.attr('id', form.attr('old-id'));
-  console.log('here');
   return true;
 }
 
@@ -32,6 +39,11 @@ function rebindSendButtons(){
 
   var closeComposeButtons = rootElement.find('[class="Ha"]');
   closeComposeButtons.mousedown(clearAndSave);
+
+  if (rootElement.find('[class*="gA gt"]')) {
+    rootElement.find('.oo').click(clearAndSaveReply);
+    rootElement.find('.adf').click(clearAndSaveReply);
+  }
 }
 
 function getContents(form, event){
@@ -184,19 +196,11 @@ function verifySignature(){
     var form = rootElement.find('form');
     var to = gCryptUtil.parseUser(form.find('textarea[name="to"]').val()).userEmail;
     var contents = form.find('iframe[class="Am Al editable"]')[0].contentDocument.body;
-    //TODO: this should be updated to only query for certain public keys
-    /*chrome.extension.sendRequest({method: "getAllPublicKeys"}, function(response){
-        for(var r = 0; r < response.length; r++){
-            var pubKey = openpgp.read_publicKey(response[r].armored);
-            //openpgp.verifySignature();
-            }
-        });
-       */
     }
 
 function stopAutomaticDrafts(){
   //Find all open compose windows, then set them not to save
-  var forms = rootElement.find('[class="nH Hd"] form[method="POST"]');
+  var forms = rootElement.find('.I5 form[method="POST"]');//rootElement.find('[class="nH Hd"] form[method="POST"]');
   $.each(forms, function(key, value) {
     //We change the ID of the form so that gmail won't upload drafts. Store old in "old-id" attribute for restoration.
     var form = $(value);
@@ -208,7 +212,6 @@ function stopAutomaticDrafts(){
   });
 
   rebindSendButtons();
-  redrawSaveDraftButton();
   //setTimeout here because we need to check if new windows are opened
   setTimeout(stopAutomaticDrafts, 2000);
 }
