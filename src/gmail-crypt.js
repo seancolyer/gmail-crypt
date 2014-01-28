@@ -157,7 +157,7 @@
         }
         self.writeContents(contents, response);
       });
-    }l
+    };
 
     this.getMessage = function(objectContext){
       var msg;
@@ -238,14 +238,35 @@
     this.composeIntercept = function(ev) {
         var composeBoxes = $('.n1tfz');
         if (composeBoxes && composeBoxes.length > 0) {
+		
+			var attach = $('.gU.az5');
+			attach.before('<td id="encrypt-compose-btn" class="oc gU">' +
+						  '<div data-tooltip="Encrypt" aria-label="Encrypt">' +
+						  '<div id="encrypt" class="J-J5-Ji J-Z-I-Kv-H" aria-pressed="false" role="button" aria-haspopup="false" aria-expanded="false" style="-webkit-user-select: none;">' +
+						  '<div class="J-J5-Ji J-Z-I-Kv-H"><div class="J-J5-Ji J-Z-I-J6-H">' +
+						  '<img id="encrypt-icon" src="'+chrome.extension.getURL("images/encrypt_open.png")+'" width=13 height=13/></span></div></div></div></div></td>');
+			attach.before('<td class="gU"><div class="Uz"></div></td>');
+			attach.before('<td id="encrypt-sign-compose-btn" class="oc gU">' +
+						  '<div data-tooltip="Encrypt and sign" aria-label="Encrypt and sign">' +
+						  '<div id="encrypt-sign" class="J-J5-Ji J-Z-I-Kv-H" aria-pressed="false" role="button" aria-haspopup="false" aria-expanded="false" style="-webkit-user-select: none;">' +
+						  '<div class="J-J5-Ji J-Z-I-Kv-H"><div class="J-J5-Ji J-Z-I-J6-H">' +
+						  '<img id="encrypt-sign-icon" src="'+chrome.extension.getURL("images/encrypt_sign_open.png")+'" width=13 height=13/></span></div></div></div></div></td>');
+			attach.before('<td class="gU"><div class="Uz"></div></td>');
+		
+			/*
             composeBoxes.each(function(){
                 var composeMenu = $(this).parent().parent().parent();
+				console.dir(composeMenu);
                 if (composeMenu && composeMenu.length> 0 && composeMenu.find('#gCryptEncrypt').length === 0) {
                     useComposeSubWindows = true;
+					
                     var maxSizeCheck = composeMenu.parent().parent().parent().parent().parent().find('[style*="max-height"]');
                     //We have to check again because of rapidly changing elements
                     if(composeMenu.find('#gCryptEncrypt').length === 0) {
                         //The below logic is for inserting the form into the windows, different behavior for in window compose and popout compose.
+						
+						
+						
                         var encryptionFormOptions = '<span id="gCryptEncrypt" class="btn-group" style="float:right"><a class="btn" href="#" id="encryptAndSign"><img src="'+chrome.extension.getURL("images/encryptIcon.png")+'" width=13 height=13/> Encrypt and Sign</a><a class="btn" href="#" id="encrypt">Encrypt</a><a class="btn" href="#" id="sign">Sign</a></span>';
 
                         var encryptionForm = '<form class="form-inline" style="float:right"><input type="password" class="input-small" placeholder="password" id="gCryptPasswordEncrypt" style="font-size:12px;margin-top:5px;"></form>';
@@ -267,6 +288,8 @@
                     }
                 }
             });
+			
+			*/
             chrome.extension.sendRequest({method: 'getOption', option: 'stopAutomaticDrafts'}, function(response){
               if(response === true){
                 self.stopAutomaticDrafts();
@@ -329,7 +352,7 @@
     };
 
     this.onLoadAnimation = function() {
-        document.addEventListener("webkitAnimationStart", this.insertListener, false);
+        document.addEventListener("webkitAnimationStart", self.insertListener, false);
         openpgp.init();
         chrome.extension.sendRequest({method: 'getConfig'}, function(response){
           openpgp.config = response;
@@ -339,5 +362,7 @@
     this.init = function() {
         $(document).ready(this.onLoadAnimation);
     };
+	
+	return this;
 })($(document)).init();
 
