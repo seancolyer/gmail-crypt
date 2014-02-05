@@ -131,8 +131,6 @@
 			}
 		} 
 		
-		var s = 'modfied finding recepits for old gmail';
-		
 		return recipients;
     };
 
