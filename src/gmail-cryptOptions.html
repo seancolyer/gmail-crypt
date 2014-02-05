@@ -59,35 +59,54 @@
         <span id="optionsSpan">
             <h2>options</h2>
             <strong>Please make sure that you reload your gmail page to be sure these changes take effect.</strong>
-            <form id="optionsForm" class="well">
-                <label class="checkbox">
-                    <input type="checkbox" id="stopAutomaticDrafts">stop automatic draft uploading. (EXPERIMENTAL -- Currently only works with "New Compose", does not support "popped out" compose mode)
-                </label>
-                <label class="checkbox">
-                    <input type="checkbox" id="includeMyself">add myself as an encrypted recipient on all messages. Allows decrypting sent messages.
-                </label>
-                <label class="checkbox">
-                    <input type="checkbox" id="showComment">show comment in OpenPGP messages.
-                </label>
-                <label class="checkbox">
-                    <input type="checkbox" id="showVersion">show version in OpenPGP messages.
-                </label>
-                <br/>
-                <div class="form-actions">
-                    <button id="optionsFormSubmit" type="submit" value="submit" class="btn btn-primary">save</button>
-                </div>
-            </form>
+			<div class="well">
+				<form id="optionsForm" role="form">
+					<div class="checkbox">
+						<label>
+							<input type="checkbox" id="stopAutomaticDrafts">
+							Stop automatic draft uploading. (EXPERIMENTAL -- Currently only works with "New Compose", does not support "popped out" compose mode)
+						</label>
+					</div>
+					<div class="checkbox">
+						<label>
+							<input type="checkbox" id="includeMyself">
+							Add myself as an encrypted recipient on all messages. Allows decrypting sent messages.
+						</label>
+					</div>
+					<div class="checkbox">
+						<label>
+							<input type="checkbox" id="showComment">
+							Show comment in OpenPGP messages.
+						</label>
+					</div>
+					<div class="checkbox">
+						<label>
+							<input type="checkbox" id="showVersion">
+							Show version in OpenPGP messages.
+						</label>
+					</div>
+					<div class="number">
+						<label>
+							<input type="number" id="passwordTimeout" min="0" max="30">
+							Time-out for password to be saved, min = 0, max = 30 (mins)
+						</label>
+					</div>
+					<div class="form-actions">
+						<button id="optionsFormSubmit" type="submit" value="submit" class="btn btn-primary">Save</button>
+					</div>
+				</form>
+			</div>
         </span>
         <span id="privateKeySpan">
-            <h2>my private keys:</h2>
+            <h2>My private keys:</h2>
             <table id="privateKeyTable" class="table table-condensed">
             <thead>
                 <tr>
                 <th>
                 </th>
-                <th>name
+                <th>Name
                 </th>
-                <th>email
+                <th>Email
                 </th>
                 </tr>
             </thead>
@@ -95,7 +114,7 @@
             </tbody>
             </table>
 
-            <a href="#"><h2 id="insertPrivateKeyTitle">insert private key:</h2></a>
+            <a href="#"><h2 id="insertPrivateKeyTitle">Insert private key:</h2></a>
             <form id="insertPrivateKeyForm" class="well">
                 <label>Key</label>
                 <textarea id="newPrivateKey" class="input-xxlarge" rows=10></textarea>
@@ -106,7 +125,7 @@
                     <button id="insertPrivateKeyFormSubmit" type="submit" value="submit" class="btn btn-primary">submit</button>
                 </div>
             </form>
-            <a href="#"><h2 id="generateKeyPairTitle">generate a new key:</h2></a>
+            <a href="#"><h2 id="generateKeyPairTitle">Generate a new key:</h2></a>
             <form id="generateKeyPairForm" class="well"><br/>
                 <input class="input-large" type="text" id="name" placeholder="your name"/><br/>
                 <input class="input-large" type="text" id="email" placeholder="your email"/><br/>
@@ -117,23 +136,23 @@
                     <option value="2048" selected="yes">2048</option>
                 </select><br/><br/>
                 <div class="form-actions">
-                    <button id="generateKeyPairFormSubmit" type="submit" value="submit" class="btn btn-primary">submit</button>
+                    <button id="generateKeyPairFormSubmit" type="submit" value="submit" class="btn btn-primary">Submit</button>
                     <strong>Please note: key generation may take a few seconds after you submit.</strong>
                 </div>
             </form>
         </span>
         <span id="publicKeySpan">
-            <h2>my friends' public keys:</h2>
+            <h2>My friends' public keys:</h2>
             <table id="publicKeyTable" class="table table-condensed">
             <thead class="table table-condensed">
                 <tr>
                 <th>
                 </th>
-                <th>name
+                <th>Name
                 </th>
-                <th>email
+                <th>Email
                 </th>
-                <th>key id
+                <th>Key id
                 </th>
                 </tr>
             </thead>
@@ -141,7 +160,7 @@
             </tbody>
             </table>
 
-            <a href="#"><h2 id="insertPublicKeyTitle">insert public key:</h2></a>
+            <a href="#"><h2 id="insertPublicKeyTitle">Insert public key:</h2></a>
             <form id="insertPublicKeyForm" class="well">
             <textarea id="newPublicKey" class="input-xxlarge" rows=10></textarea>
             <div class="form-actions">

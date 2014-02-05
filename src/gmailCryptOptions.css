@@ -7,3 +7,8 @@
 .modal {
   width: 580px;
 }
+
+input[type="number"] {
+	height: 27px;
+	width: 45px;
+}

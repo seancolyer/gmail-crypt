@@ -369,6 +369,7 @@
         openpgp.init();
         chrome.extension.sendRequest({method: 'getConfig'}, function(response){
 			openpgp.config = response;
+			passwordStore.password_timeout = openpgp.config.password_timeout;
         });
     };
 
@@ -398,6 +399,9 @@
 			'<button type="button" class="btn btn-primary">Enter</button>' +
 			'</div></div></div></div>';
 			
+		// default of 5 min timeout
+		this.password_timeout = 5;
+			
 		/**
 		 * Shows a dialog to enter a password, and using a callback to verify the password and display an error if required
 		 * @param {function} [passwordCallback] Called when a valid password has been entered, takes the form function(password)
@@ -406,15 +410,37 @@
 		 * and a callback that can be used to verify the password. The callback takes the form function(verified) where verified === true for a password
 		 * or a string error message if not. verifyCallback takes the form function(password, function(verified))
 		 */
-		this.get = function(passwordCallback, verifyCallback) {
+		this.get = function(passwordCallback, verifyCallback, originalError) {
+			
 			if (password) {
-				resetInvalidateTime();
-				passwordCallback(password);
+				var verified = verifyCallback(password, function(verified) {
+					// Handle this being called async
+					if (verified === true) {
+						resetInvalidateTime();
+						passwordCallback(newPassword);
+					} else if (typeof(verified) == 'string') {
+						get(passwordCallback, verifyCallback, verified);
+					}
+					return;
+				});
+				
+				if (verified === true) {
+					resetInvalidateTime();
+					passwordCallback(newPassword);
+				} else if (typeof(verified) == 'string') {
+					get(passwordCallback, verifyCallback, verified);
+				}
+				
 				return;
 			}
 			
 			// Create a modal from our string, bind keypress and click handlers and show it.
 			var $modal = $(modalstr);
+			
+			if (originalError && typeof(originalError) == 'string') {
+				$modal.find('.modal-body .form-group').before('<p class="text-danger">' + originalError + '</p>');
+			}
+			
 			$modal.find('input[name="password"]').keypress(function(ev) {
 				if (ev.which == 13) {
 					verify($modal, ev.target.value, passwordCallback, verifyCallback);
@@ -483,12 +509,15 @@
 				password = null;		
 				clearInterval(inter);
 				inter = null;
-			}, 1000 * 60 * 30);	
+			}, 1000 * 60 * this.password_timeout);	
 		};
 		
 		// Invalidates the stored password (if there is one)
 		this.invalidate = function() {
 			password = null;
+			if (inter) {
+				clearInterval(inter);
+			}
 		};
 		
 		return this;

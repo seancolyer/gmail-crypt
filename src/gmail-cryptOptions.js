@@ -114,6 +114,13 @@
         } else {
             openpgp.config.config.show_version = false;
         }
+		
+		var $pwdto = $('#passwordTimeout');
+		if ($pwdto.val() >= 0 && $pwdto.val() <= 30) {
+			openpgp.config.config.password_timeout = $pwdto.val();
+		} else {
+			openpgp.config.config.password_timeout = 5;
+		}
         
         openpgp.config.config.gCrypt = gCryptSettings;
         openpgp.config.write();
@@ -133,6 +140,11 @@
         if (openpgp.config.config.show_version){
             $('#showVersion').attr('checked', true);
         }
+		if (openpgp.config.config.password_timeout) {
+			$('#passwordTimeout').val(openpgp.config.config.password_timeout);
+		} else {
+			$('#passwordTimeout').val(5);
+		}
    }
 
    function linkLocalFunction(event){
