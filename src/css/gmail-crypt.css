@@ -20,3 +20,22 @@ from { clip: rect(1px, auto, auto, auto); }
 .modal.fade.in:hover {
 	text-decoration: none;
 }
+
+
+.modal * {
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  box-sizing: border-box;
+}
+.modal *:before,
+.modal *:after {
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+.modal label {
+  display: inline-block;
+  margin-bottom: 5px;
+  font-weight: bold;
+}

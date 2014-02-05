@@ -391,7 +391,7 @@
 		var inter = null;
 		
 		/** String that contains the html for the password modal */
-		var modalstr = '<div class="modal fade"><div class="modal-dialog"><div class="modal-content">' +
+		var $modal = $('<div class="modal fade"><div class="modal-dialog"><div class="modal-content">' +
 			'<div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button></div>' +
 			'<div class="modal-body">' +
 			'<div class="form-group">' +
@@ -401,7 +401,7 @@
 			'<div class="modal-footer">' +
 			'<button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>' +
 			'<button type="button" class="btn btn-primary">Enter</button>' +
-			'</div></div></div></div>';
+			'</div></div></div></div>');
 			
 		// default of 5 min timeout
 		this.password_timeout = 5;
@@ -438,9 +438,6 @@
 				return;
 			}
 			
-			// Create a modal from our string, bind keypress and click handlers and show it.
-			var $modal = $(modalstr);
-			
 			if (originalError && typeof(originalError) == 'string') {
 				$modal.find('.modal-body .form-group').before('<p class="text-danger">' + originalError + '</p>');
 			}
@@ -458,16 +455,14 @@
 				verify($modal, newPassword, passwordCallback, verifyCallback);
 			});
 			
-			$modal.find('button.btn-default').click(function(ev) {
-				delete $modal;
-			});
-			
 			$modal.modal({
 				show: true,
 				keyboard: false
 			});
 			
-			$modal.find('input[type="password"]').focus();
+			$modal.on('shown.bs.modal', function(e) {
+				$modal.find('input').focus();
+			});
 		};
 		
 		var verify = function($modal, newPassword, passwordCallback, verifyCallback) {
@@ -483,7 +478,6 @@
 						password = newPassword;
 						resetInvalidateTime();
 						passwordCallback(newPassword);
-						delete $modal;
 					} else if (typeof(verified) == 'string') {
 						$modal.find('.modal-body .form-group').before('<p class="text-danger">' + verified + '</p>');
 						$modal.find('.form-group').addClass('has-warning');
@@ -496,7 +490,6 @@
 					password = newPassword;
 					resetInvalidateTime();
 					passwordCallback(newPassword);
-					delete $modal;
 				} else if (typeof(verified) == 'string') {
 					$modal.find('.modal-body .form-group').before('<p class="text-danger">' + verified + '</p>');
 					$modal.find('.form-group').addClass('has-warning');
