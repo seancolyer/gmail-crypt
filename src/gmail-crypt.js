@@ -118,15 +118,20 @@
 				});
 			}
 		} else {
-			//for old style
-			var temp = $(event.target).closest('.nH.Hd');
-			var temp2 = temp.find('.vN.Y7BVp');
-			console.dir(temp2);
-			
-			$(event.target).closest('.nH.Hd').find('.vN.Y7BVp').each(function() {
+			//for new-old style			
+			$(event.target).closest('.nH.Hd, .aoI').find('.vN.Y7BVp').each(function() {
 				recipients.email.push(gCryptUtil.parseUser($(this).attr('email')).userEmail);
 			});
-		}
+			
+			if (recipients.email.length == 0) {
+				// for old-old style
+				$(event.target).closest('.nH.Hd, .aoI').find('.vN.vP').each(function() {
+					recipients.email.push(gCryptUtil.parseUser($(this).attr('email')).userEmail);
+				});
+			}
+		} 
+		
+		var s = 'modfied finding recepits for old gmail';
 		
 		return recipients;
     };
@@ -235,6 +240,7 @@
 				
 				if (response.decrypted) {
 					element.html(response.text.replace(/\n/g,'<br>'));
+					$('#decrypt-icon').attr('src', chrome.extension.getURL("images/encrypt_open.png"));
 				} else {
 					self.showAlert('Error', 'There was an unexpected error decrypting your message');
 				}
