@@ -1,9 +1,22 @@
 @-webkit-keyframes composeInserted {  
-    from { clip: rect(1px, auto, auto, auto); }
-      to { clip: rect(0px, auto, auto, auto); }
-    }
+from { clip: rect(1px, auto, auto, auto); }
+  to { clip: rect(0px, auto, auto, auto); }
+}
 
 .n1tfz, td[class="gH acX"], td[class="fA"]{
-      -webkit-animation-duration: 0.001s;
-      -webkit-animation-name: composeInserted;
-    }
+  -webkit-animation-duration: 0.001s;
+  -webkit-animation-name: composeInserted;
+}
+	
+.gc-decrypt-icon {
+	height: 21px;
+	width: 21px;
+}
+
+.modal.fade.in {
+	color: black;
+}
+
+.modal.fade.in:hover {
+	text-decoration: none;
+}

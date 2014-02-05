@@ -25,14 +25,14 @@ var gCryptAlerts = {
 
 
 function getOption(optionName) {
-  openpgp.config.read();
-  var gCryptSettings = openpgp.config.config.gCrypt;
-  if(!gCryptSettings){
-    return;
-  }
-  else{
-    return gCryptSettings[optionName];
-  }
+	openpgp.config.read();
+	var gCryptSettings = openpgp.config.config.gCrypt;
+	
+	if(!gCryptSettings) {
+		return;
+	} else {
+		return gCryptSettings[optionName];
+	}
 }
 
 function getPublicKeys(emails){
@@ -74,7 +74,6 @@ function getPrivateKey(email) {
   return openpgp.keyring.getPrivateKeyForAddress(email);
 }
 
-
 function prepareAndValidatePrivateKey(password) {
   var privKey = openpgp.read_privateKey(getPrivateKeys()[0].armored)[0];
   if(!privKey) {
@@ -90,7 +89,7 @@ function prepareAndValidatePrivateKey(password) {
 
 function prepareAndValidateKeysForRecipients(recipients) {
   if(recipients.email.length === 0){
-    return gCryptAlert.gCryptAlertEncryptNoUser;
+    return gCryptAlerts.gCryptAlertEncryptNoUser;
   }
 
   var keys = getPublicKeys(recipients.email);
@@ -231,6 +230,10 @@ chrome.extension.onRequest.addListener(function(request,sender,sendResponse){
       result = decrypt(request.senderEmail, request.msg, request.password);
       sendResponse(result);
     }
+	if (request.method == "verifyPassword") {
+		result = prepareAndValidatePrivateKey(request.password);
+		sendResponse(result);
+	}
     if(request.method == "getOption"){
       result = getOption(request.option);
       sendResponse(result);
