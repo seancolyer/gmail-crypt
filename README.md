@@ -20,3 +20,4 @@ Additional help welcome. If the changes you're interested in making are in the O
 
 # Licensing
 See LICENSE file for licensing info.
+Thanks to http://designmodo.com for icons.
