@@ -13,7 +13,7 @@
 </head>
 
 <body>
-<nav class="collapse navbar-collapse navbar-fixed-top" role="navigation">
+<nav class="collapse navbar-collapse" role="navigation">
 	<div class="container">
 		 <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
 			<ul class="nav navbar-nav" id="navbar">
@@ -25,15 +25,15 @@
 			</ul>
 		</div>
 	</div>
-</div>
+</nav>
 
-  <header class="jumbotron subhead">
-    <div class="container">
-        <h3>mymail-crypt for Gmail options</h3>
-        <div class="subnav subnav-fixed">
-        </div>
-    </div>
-  </header>
+<header class="jumbotron subhead">
+	<div class="container">
+		<h3>mymail-crypt for Gmail options</h3>
+			<div class="subnav subnav-fixed">
+		</div>
+	</div>
+</header>
 
 <div class="container">
     <div id="mainColumn">
@@ -97,45 +97,63 @@
         </span>
         <span id="privateKeySpan">
             <h2>My private keys:</h2>
-            <table id="privateKeyTable" class="table table-condensed">
-            <thead>
-                <tr>
-                <th>
-                </th>
-                <th>Name
-                </th>
-                <th>Email
-                </th>
-                </tr>
-            </thead>
-            <tbody>
-            </tbody>
+            <table id="privateKeyTable" class="table table-striped">
+				<thead>
+					<tr>
+						<th></th>
+						<th>Name</th>
+						<th>Email</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+				</tbody>
             </table>
 
             <a href="#"><h2 id="insertPrivateKeyTitle">Insert private key:</h2></a>
-            <form id="insertPrivateKeyForm" class="well">
-                <label>Key</label>
-                <textarea id="newPrivateKey" class="input-xxlarge" rows=10></textarea>
-                <label>Password</label>
-                <input class="input-xxlarge" type="password" id="newPrivateKeyPassword">
-                <br/>
-                <div class="form-actions">
+            <form id="insertPrivateKeyForm" class="well form-horizontal" role="form">
+				<div class="form-group">
+					<label for="newPrivateKey">Key</label>
+					<textarea id="newPrivateKey" class="form-control" rows=10></textarea>
+				</div>
+				
+				<div class="form-group">
+					<label for="newPrivateKeyPassword">Password</label>
+					<input class="form-control" type="password" id="newPrivateKeyPassword">
+				</div>
+                <div class="form-group">
                     <button id="insertPrivateKeyFormSubmit" type="submit" value="submit" class="btn btn-primary">submit</button>
                 </div>
             </form>
             <a href="#"><h2 id="generateKeyPairTitle">Generate a new key:</h2></a>
-            <form id="generateKeyPairForm" class="well"><br/>
-                <input class="input-large" type="text" id="name" placeholder="your name"/><br/>
-                <input class="input-large" type="text" id="email" placeholder="your email"/><br/>
-                <input class="input-large" type="password" id="password" placeholder="password"/><br/>
-                <label>Key bit-length</label>
-                <select id="numBits">
-                    <option value="1024">1024</option>
-                    <option value="2048" selected="yes">2048</option>
-                </select><br/><br/>
-                <div class="form-actions">
-                    <button id="generateKeyPairFormSubmit" type="submit" value="submit" class="btn btn-primary">Submit</button>
-                    <strong>Please note: key generation may take a few seconds after you submit.</strong>
+            <form id="generateKeyPairForm" class="well form-horizontal" role="form">
+				<div class="form-group">
+					<div class="col-xs-4">
+						<input class="form-control" type="text" id="name" placeholder="Your name">
+					</div>
+				</div>
+				<div class="form-group">
+					<div class="col-xs-4">
+						<input class="form-control" type="text" id="email" placeholder="Your email">
+					</div>
+				</div>
+				<div class="form-group">
+					<div class="col-xs-4">
+						<input class="form-control" type="password" id="password" placeholder="password">
+					</div>
+				</div>
+				<div class="form-group">
+					<div class="col-xs-4">
+						<label for="numBits">Key bit-length</label>
+						<select class="form-control" id="numBits">
+							<option value="1024">1024</option>
+							<option value="2048" selected="yes">2048</option>
+						</select>
+					</div>
+				</div>
+                <div class="form-group">
+					<button id="generateKeyPairFormSubmit" type="submit" value="submit" class="btn btn-primary">Submit</button>
+					<strong>Please note: key generation may take a few seconds after you submit.</strong>
                 </div>
             </form>
         </span>
@@ -159,11 +177,14 @@
             </table>
 
             <a href="#"><h2 id="insertPublicKeyTitle">Insert public key:</h2></a>
-            <form id="insertPublicKeyForm" class="well">
-            <textarea id="newPublicKey" class="input-xxlarge" rows=10></textarea>
-            <div class="form-actions">
-                <button id="insertPublicKeyFormSubmit" type="submit" value="submit" class="btn btn-primary">submit</button>
-            </div>
+            <form id="insertPublicKeyForm" class="well form-horizontal" role="form">
+				<div class="form-group">
+					<label for="newPublicKey">Public key</label>
+					<textarea id="newPublicKey" class="form-control" rows=10></textarea>
+				</div>
+				<div class="form-group">
+					<button id="insertPublicKeyFormSubmit" type="submit" value="submit" class="btn btn-primary">submit</button>
+				</div>
             </form>
         </span>
         <span id="helpSpan">
@@ -220,12 +241,14 @@
             </p>
         </span>
     </div>
-    <footer class="footer">
-        <p>
-        mymail-crypt for Gmail<br/>
-        <a href="https://github.com/seancolyer/gmail-crypt" class="linkLocal">project page</a> |
-        <a href="LICENSE">license</a>
-        </p>
+    <footer class="panel-footer">
+		<div class="container">
+			<p>mymail-crypt for Gmail</p>		
+			<p>
+				<a href="https://github.com/seancolyer/gmail-crypt" class="linkLocal">project page</a> |
+				<a href="LICENSE">license</a>
+			</p>
+		</div>
     </footer>
 </div>
 </body>
