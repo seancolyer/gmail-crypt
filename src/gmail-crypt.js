@@ -475,10 +475,12 @@
 					// Handle this being called async
 					if (verified === true) {
 						$modal.modal('hide');
+						$modal.find('input').val('');
 						password = newPassword;
 						resetInvalidateTime();
 						passwordCallback(newPassword);
 					} else if (typeof(verified) == 'string') {
+						$modal.find('input').val('');
 						$modal.find('.modal-body .form-group').before('<p class="text-danger">' + verified + '</p>');
 						$modal.find('.form-group').addClass('has-warning');
 					}
@@ -487,10 +489,12 @@
 				
 				if (verified === true) {
 					$modal.modal('hide');
+					$modal.find('input').val('');
 					password = newPassword;
 					resetInvalidateTime();
 					passwordCallback(newPassword);
 				} else if (typeof(verified) == 'string') {
+					$modal.find('input').val('');
 					$modal.find('.modal-body .form-group').before('<p class="text-danger">' + verified + '</p>');
 					$modal.find('.form-group').addClass('has-warning');
 				}
