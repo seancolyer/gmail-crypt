@@ -2,10 +2,6 @@
    var publicKeyFormToggle = true;
    var generateKeyFormToggle = true;
    
-   function showMessages(msg){
-    console.log(msg); 
-   }
-   
    function generateKeyPair(){
         $('.alert').hide();
         var form = $('#generateKeyPairForm');
