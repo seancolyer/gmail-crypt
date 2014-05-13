@@ -5,6 +5,8 @@
  * See included "LICENSE" file for details.
  */
 
+var keyring;
+
 //Grouping all alerts in one place, easy to access. Consider moving .html to a format function, since they are heavily pattern based.
 var gCryptAlerts = {
   gCryptAlertDecryptNoMessage : {id: 'gCryptAlertDecryptNoMessage', type: 'error', text: 'No OpenPGP message was found.',
@@ -25,13 +27,12 @@ var gCryptAlerts = {
 
 
 function getOption(optionName) {
-  openpgp.config.read();
-  var gCryptSettings = openpgp.config.config.gCrypt;
-  if(!gCryptSettings){
+  var gCryptSettings = openpgp.config.thirdParty;
+  if(!gCryptSettings || !gCryptSettings.config){
     return;
   }
   else{
-    return gCryptSettings[optionName];
+    return gCryptSettings.config[optionName];
   }
 }
 
@@ -66,8 +67,12 @@ function getMyKeyId(callback){
   }
 }
 
-function getPrivateKeys() {
-  return openpgp.keyring.privateKeys;
+function getKeys(keyIds, keyringSet) {
+  var keys = [];
+  keyIds.forEach(function(keyId){
+    keys.push(keyringSet.getForId(keyId.toHex(), true));
+  });
+  return keys;
 }
 
 function getPrivateKey(email) {
@@ -76,7 +81,8 @@ function getPrivateKey(email) {
 
 
 function prepareAndValidatePrivateKey(password) {
-  var privKey = openpgp.read_privateKey(getPrivateKeys()[0].armored)[0];
+  debugger;
+  var privKey = keyring.getForAddress();//TODO email
   if(!privKey) {
     return gCryptAlerts.gCryptAlertEncryptNoPrivateKeys;
   }
@@ -145,67 +151,39 @@ function sign(message, password) {
   return cipherText;
 }
 
-function decryptHelper(msg, material, sessionKey, publicKeys){
-  var status = [];
-  try{
-      var decryptResult = msg.decryptAndVerifySignature(material, sessionKey, publicKeys);
-        if(decryptResult.text !== ''){
-            if(decryptResult.validSignatures.indexOf(false)>=0 || decryptResult.validSignatures.length === 0){
-                 status.push(gCryptAlerts.gCryptUnableVerifySignature);
-            }
-            else{
-                status.push(gCryptAlerts.gCryptAbleVerifySignature);
-            }
-            return {decrypted: true, status: status, text: decryptResult.text};
-            }
-        }
-    catch(e){ //This means that the initial key is not the one we need
-    }
-    return {decrypted: false};
-}
-
 function decrypt(senderEmail, msg, password) {
+  debugger;
   var errors = [];
-  msg = openpgp.read_message(msg);
-  if(msg === null){
+  try{
+    msg = openpgp.message.readArmored(msg);
+  }
+  catch (e) {
     errors.push(gCryptAlerts.gCryptAlertDecryptNoMessage);
-    return { decrypted: false, status: errors};
+    return {decrypted: false, status: errors};
   }
-  //msg is an array so we need to take the first
-  msg = msg[0];
-  var privateKeys = getPrivateKeys();
-  var publicKeys = getPublicKey(senderEmail);
-  for (var publicKey in publicKey) {
-    publicKeys[publicKey].obj = openpgp.read_publicKey(publicKeys[publicKey].armored)[0];
-  }
-  privateKeyLoop:
-  for(var r = 0; r < privateKeys.length;r++){
-    var key = openpgp.read_privateKey(privateKeys[r].armored)[0];
-    if(!key.hasUnencryptedSecretKeyData){
-      if(!key.decryptSecretMPIs(password)) {
-        errors.push(gCryptAlerts.gCryptAlertPassword);
-        continue privateKeyLoop;
-      }
+  var keyIds = msg.getEncryptionKeyIds();
+  var privateKeys = getKeys(keyIds, keyring.privateKeys);
+  var publicKeys = keyring.publicKeys.getForAddress(senderEmail);
+  for (var r = 0; r < privateKeys.length; r++){
+    var key = privateKeys[r];
+    if (!key.decryptKeyPacket(keyIds, password)) {
+      //TODO this could be generate false positive errors if we privateKeys really has multiple hits
+      errors.push(gCryptAlerts.gCryptAlertPassword);
     }
 
-    var material = {key: key , keymaterial: key.privateKeyPacket};
-    for(var sessionKeyIterator in msg.sessionKeys){
-      var sessionKey = msg.sessionKeys[sessionKeyIterator];
-      var keymat = {key: key , keymaterial: key.privateKeyPacket};
-      decryptResult = decryptHelper(msg, keymat, sessionKey, publicKeys);
-      if (decryptResult.decrypted) {
-        return decryptResult;
-      }
-      for (var j = 0; j < key.subKeys.length; j++) {
-        keymat = { key: key, keymaterial: key.subKeys[j]};
-        if(!keymat.keymaterial.hasUnencryptedSecretKeyData) {
-          keymat.keymaterial.decryptSecretMPIs(password);
-        }
-        decryptResult = decryptHelper(msg, keymat, sessionKey, publicKeys);
-        if (decryptResult.decrypted) {
-          return decryptResult;
+    var result = openpgp.decryptAndVerifyMessage(key, publicKeys, msg);
+
+    if (result !== null) {
+      var status = [];
+      for (var s = 0; s < result.signatures.length; s++) {
+        if (result.signatures[s].valid) {
+          status = [gCryptAlerts.gCryptAbleVerifySignature];
         }
       }
+      if (status.length === 0) {
+        status = [gcryptAlerts.gCryptUnableVerifySignature];
+      }
+      return {decrypted: true, status: status, result: result};
     }
   }
   return {decrypted: false, status: errors};
@@ -213,7 +191,6 @@ function decrypt(senderEmail, msg, password) {
 
 
 chrome.extension.onRequest.addListener(function(request,sender,sendResponse){
-    openpgp.keyring.init(); //We need to handle changes that might have been made.
     var result;
     if(request.method == "encryptAndSign"){
       result = encryptAndSign(request.recipients, request.message, request.password);
@@ -236,18 +213,14 @@ chrome.extension.onRequest.addListener(function(request,sender,sendResponse){
       sendResponse(result);
     }
     if(request.method == "getConfig"){
-        sendResponse(openpgp.config);
+        sendResponse();
     }
     else{
     }
 });
 
 function onLoad(){
-    openpgp.init();
+  keyring = new openpgp.Keyring();//openpgp.Keyring.localstore());
 }
 
 document.onload = onLoad();
-
-function showMessages(str){
-  console.log(str);
-}

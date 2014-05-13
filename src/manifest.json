@@ -1,6 +1,6 @@
 {
 "name":"Mymail-Crypt for Gmail™",
-"version":"25",
+"version":"26",
 "manifest_version":2,
 "description":"Extension implementing GPG into Webmail (Gmail™) using the OpenPGP.js library. This project is no way affiliated with Google™.",
 "icons": {
@@ -13,12 +13,12 @@
     "http://google.com/*"
     ],
 "background": {
-    "scripts":["lib/jquery-2.0.2.min.js", "lib/openpgp.js", "gmail-cryptUtil.js", "gmail-cryptBackground.js"]
+    "scripts":["lib/jquery-2.1.0.min.js", "lib/openpgp.js", "gmail-cryptUtil.js", "gmail-cryptBackground.js"]
     },
 "content_scripts": [{
     "matches":["https://mail.google.com/*","http://mail.google.com/*"],
     "css": ["bootstrap.btn.css", "bootstrap.modal.css", "gmail-crypt.css"],
-    "js": ["lib/jquery-2.0.2.min.js", "lib/bootstrap-dropdown.js", "lib/bootstrap-modal.js","lib/openpgp.js","gmail-cryptUtil.js","gmail-crypt.js"],
+    "js": ["lib/jquery-2.1.0.min.js", "lib/bootstrap-dropdown.js", "lib/bootstrap-modal.js","lib/openpgp.js","gmail-cryptUtil.js","gmail-crypt.js"],
     "run_at":"document_idle",
     "all_frames":true
 }],
@@ -26,6 +26,7 @@
 "options_page":"gmail-cryptOptions.html",
 "web_accessible_resources": [
     "images/decryptIcon.png",
-    "images/encryptIcon.png"
+    "images/encryptIcon.png",
+    "lib/jquery-2.1.0.min.map"
     ]
 }

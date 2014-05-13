@@ -184,7 +184,7 @@ function decrypt(event){
       $(objectContext).parents('div[class="gE iv gt"]').append(status.html);
     });
     if (response.decrypted) {
-      element.html(response.text.replace(/\n/g,'<br>'));
+      element.html(response.result.text.replace(/\n/g,'<br>'));
     }
   });
 }
@@ -326,12 +326,6 @@ var insertListener = function(event) {
   }
 };
 
-function onLoadAnimation() {
-    document.addEventListener("webkitAnimationStart", insertListener, false);
-    openpgp.init();
-    chrome.extension.sendRequest({method: 'getConfig'}, function(response){
-      openpgp.config = response;
-    });
-}
-
-$(document).ready(onLoadAnimation);
+// TODO this used to be more reliable to call the eventlistener in $(document).ready idk why it's not now
+//$(document).ready(onLoadAnimation);
+document.addEventListener("webkitAnimationStart", insertListener, false);
