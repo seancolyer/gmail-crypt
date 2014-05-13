@@ -36,37 +36,6 @@ function getOption(optionName) {
   }
 }
 
-function getPublicKeys(emails){
-  var keys = {};
-  var includeMyKey = getOption('includeMyself');
-  for(var email in emails){
-    try{
-      if(emails[email].length>0){
-          keys[emails[email]] = openpgp.keyring.getPublicKeyForAddress(emails[email])[0].armored;
-      }
-      if (includeMyKey) {
-        var myKey = openpgp.keyring.getPublicKeysForKeyId(request.myKeyId)[0];
-        var myEmail = gCryptUtil.parseUser(myKey.obj.userIds[0].text).userEmail;
-        keys[myEmail] = myKey.armored;
-      }
-    }
-    catch(e){
-
-    }
-  }
-  return keys;
-}
-
-function getPublicKey(email) {
-  return openpgp.keyring.getPublicKeyForAddress(email);
-}
-
-function getMyKeyId(callback){
-  if(openpgp.keyring.privateKeys.length > 0) {
-    return openpgp.keyring.privateKeys[0].keyId;
-  }
-}
-
 function getKeys(keyIds, keyringSet) {
   var keys = [];
   keyIds.forEach(function(keyId){
@@ -75,23 +44,15 @@ function getKeys(keyIds, keyringSet) {
   return keys;
 }
 
-function getPrivateKey(email) {
-  return openpgp.keyring.getPrivateKeyForAddress(email);
-}
-
-
 function prepareAndValidatePrivateKey(password) {
-  debugger;
-  var privKey = keyring.getForAddress();//TODO email
-  if(!privKey) {
-    return gCryptAlerts.gCryptAlertEncryptNoPrivateKeys;
-  }
-  if (!privKey.decryptSecretMPIs()) {
-    if (!privKey.decryptSecretMPIs(password)) {
-      return gCryptAlerts.gCryptAlertPassword;
+  var privKeys = keyring.privateKeys;
+  for (var p = 0; p < privKeys.keys.length; p++) {
+    var privKey = privKeys.keys[p];
+    if (privKey.decrypt() || privKey.decrypt(password)) {
+      return privKey;
     }
   }
-  return privKey;
+  return gCryptAlerts.gCryptAlertEncryptNoPrivateKeys;
 }
 
 function prepareAndValidateKeysForRecipients(recipients) {
@@ -99,28 +60,28 @@ function prepareAndValidateKeysForRecipients(recipients) {
     return gCryptAlert.gCryptAlertEncryptNoUser;
   }
 
-  var keys = getPublicKeys(recipients.email);
+  var emails = recipients.email;
+  var keys = [];
+  for(var email in emails){
+    if(emails[email].length > 0){
+      keys.push(keyring.publicKeys.getForAddress(emails[email])[0]);
+    }
+  }
 
-  var responseKeys = Object.keys(keys);
-  if(responseKeys.length === 0){
+  if(keys.length === 0){
     return gCryptAlerts.gCryptAlertEncryptNoUser;
   }
-  //We do the section below because when looking up keys from keyring, they're not necessarily in proper form.
-  var publicKeys = [];
-  for(var r in responseKeys){
-    var recipient = responseKeys[r];
-    if(keys[recipient].length === 0) {
-      return gCryptAlerts.gCryptAlertEncryptNoUser;
-    }
-    else{
-      publicKeys.push(openpgp.read_publicKey(keys[recipient])[0]);
-    }
-  }
 
-  return publicKeys;
+  var includeMyKey = getOption('includeMyself');
+  if (includeMyKey) {
+    var myKey = keyring.publicKeys.getFoId(request.myKeyId)[0];
+    keys.push(myKey);
+  }
+  return keys;
 }
 
 function encryptAndSign(recipients, message, password) {
+  debugger;
   var privKey = prepareAndValidatePrivateKey(password);
   if(privKey && privKey.type && privKey.type == "error") {
     return privKey;
@@ -129,7 +90,7 @@ function encryptAndSign(recipients, message, password) {
   if(publicKeys && publicKeys.type && publicKeys.type == "error") {
     return publicKeys;
   }
-  var cipherText = openpgp.write_signed_and_encrypted_message(privKey,publicKeys, message);
+  var cipherText = openpgp.signAndEncryptMessage(publicKeys, privKey, message);
   return cipherText;
 }
 
@@ -138,7 +99,7 @@ function encrypt(recipients, message) {
   if(publicKeys && publicKeys.type && publicKeys.type == "error") {
     return publicKeys;
   }
-  var cipherText = openpgp.write_encrypted_message(publicKeys, message);
+  var cipherText = openpgp.encryptMessage(publicKeys, message);
   return cipherText;
 }
 
@@ -147,12 +108,11 @@ function sign(message, password) {
   if(privKey && privKey.type && privKey.type == "error") {
     return privKey;
   }
-  var cipherText = openpgp.write_signed_message(privKey, message);
+  var cipherText = openpgp.signClearMessage(privKey, message);
   return cipherText;
 }
 
 function decrypt(senderEmail, msg, password) {
-  debugger;
   var errors = [];
   try{
     msg = openpgp.message.readArmored(msg);
@@ -220,7 +180,7 @@ chrome.extension.onRequest.addListener(function(request,sender,sendResponse){
 });
 
 function onLoad(){
-  keyring = new openpgp.Keyring();//openpgp.Keyring.localstore());
+  keyring = new openpgp.Keyring();
 }
 
 document.onload = onLoad();
