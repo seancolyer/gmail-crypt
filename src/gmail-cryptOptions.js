@@ -1,9 +1,10 @@
+var keyring;
 var privateKeyFormToggle = true;
 var publicKeyFormToggle = true;
 var generateKeyFormToggle = true;
 
 function showMessages(msg){
-  console.log(msg); 
+  console.log(msg);
 }
 
 function generateKeyPair(){
@@ -70,18 +71,21 @@ function parsePublicKeys(){
 }
 
 function parsePrivateKeys(){
-  var keys = openpgp.keyring.privateKeys;
+  var keys = keyring.privateKeys.keys;
   $('#privateKeyTable>tbody>tr').remove();
-  for(var k=0;k<keys.length;k++){
+  for(var k = 0; k < keys.length; k++) {
     var key = keys[k];
-    var user = gCryptUtil.parseUser(key.obj.userIds[0].text);
-    $('#privateKeyTable>tbody').append('<tr><td class="removeLink" id="'+k+'"><a href="#">remove</a></td><td>'+user.userName+'</td><td>'+user.userEmail+'</td><td><a href="#private'+k+'" data-toggle="modal">show key</a><div class="modal" id="private'+k+'"><div class="modal-body"><a class="close" data-dismiss="modal">Close</a><br/ ><pre>'+key.armored +'</pre></div></div></td></tr>');
-    $('#private'+k).hide();
-    $('#private'+k).modal({backdrop: true, show: false});
+    var user = gCryptUtil.parseUser(key.users[0].userId.userid);
+    $('#privateKeyTable>tbody').append('<tr><td class="removeLink" id="' + k + '"><a href="#">remove</a></td>' +
+                                       '<td>' + user.userName + '</td>' +
+                                       '<td>' + user.userEmail + '</td>' +
+                                       '<td><a href="#private'+ k +'" data-toggle="modal">show key</a><div class="modal" id="' + k + '"><div class="modal-body"><a class="close" data-dismiss="modal">Close</a><br/ ><pre>' + key.armor() + '</pre></div></div></td></tr>');
+    $('#private' + k).hide();
+    $('#private' + k).modal({backdrop: true, show: false});
   }
   $('#privateKeyTable .removeLink').click(function(e){
-    openpgp.keyring.removePrivateKey(e.currentTarget.id);
-    openpgp.keyring.store();
+    keyring.privateKeys.keys.splice(e.currentTarget.id);
+    keyring.store();
     parsePrivateKeys();
   });
 }
@@ -144,7 +148,7 @@ function linkLocalFunction(event){
 }
 
 function onLoad(){
-  openpgp.init();
+  keyring = new openpgp.Keyring();
   parsePrivateKeys();
   parsePublicKeys();
   loadOptions();
@@ -154,7 +158,7 @@ function onLoad(){
   $('#generateKeyPairTitle').click(function() {
     $('#generateKeyPairForm').toggle(generateKeyFormToggle);
     generateKeyFormToggle = !generateKeyFormToggle;
-  });      
+  });
   $('#insertPrivateKeyForm').hide();
   $('#insertPrivateKeyTitle').click(function() {
     $('#insertPrivateKeyForm').toggle(privateKeyFormToggle);
