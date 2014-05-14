@@ -12,7 +12,7 @@ It is important to familiarize yourself with **Options** page, where keys will b
 The project is built on top of JavaScript OpenPGP library [OpenPGP.js](https://github.com/openpgpjs/openpgpjs). The extension uses the Chromium concept of *Content Scripts* to interact with the Gmail interface. It uses jQuery to manipulate the Gmail page.
 
 # More information
-I sometimes post about this project at [prometheusx.net](prometheusx.net).
+I sometimes post about this project at [prometheusx.net](http://prometheusx.net).
 
 # Contribution
 
