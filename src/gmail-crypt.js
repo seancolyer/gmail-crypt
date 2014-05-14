@@ -189,14 +189,22 @@ function decrypt(event){
   });
 }
 
-//TODO: this has not yet been completed in openpgp.js
 function verifySignature(){
-    var setup = getMessage(this);
-    var msg = setup[1];
-    var form = rootElement.find('form');
-    var to = gCryptUtil.parseUser(form.find('textarea[name="to"]').val()).userEmail;
-    var contents = form.find('iframe[class="Am Al editable"]')[0].contentDocument.body;
+  rootElement.find('.alert').hide();
+  var objectContext = this;
+  var setup = getMessage(objectContext);
+  var element = setup[0];
+  var msg = setup[1];
+  var senderEmail = $(objectContext).parents('div[class="gE iv gt"]').find('span [email]').attr('email');
+  chrome.extension.sendRequest({method: "verify", senderEmail:senderEmail, msg: msg}, function(response){
+    $.each(response.status, function(key, status) {
+      $(objectContext).parents('div[class="gE iv gt"]').append(status.html);
+    });
+    if (response.decrypted) {
+      element.html(response.result.text.replace(/\n/g,'<br>'));
     }
+  });
+}
 
 function stopAutomaticDrafts(){
   //Find all open compose windows, then set them not to save
