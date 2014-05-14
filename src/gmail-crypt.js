@@ -47,45 +47,45 @@ function rebindSendButtons(){
 }
 
 function getContents(form, event){
-    //g_editable is intended to work with Gmail's new broken out window approach.
-    //we search based on event because it works well in case multiple compose windows are open
-    var msg;
-    var g_editable = $(event.currentTarget).parents().find('[g_editable]').first();
-    if (g_editable && g_editable.length > 0 && g_editable.html()) {
-        msg = g_editable.html().replace(/(<div>)/g,'\n');
-        msg = msg.replace(/(<\/div>)/g,'');
-        return {g_editable: g_editable, msg: msg};
-    }
-    var textarea = $('textarea[spellcheck="true"]',form);
-    var iframe = $('iframe',form).contents().find('body');
-    try{
-        msg = iframe.html().replace(/(<div>)/g,'\n');
-        msg = msg.replace(/(<\/div>)/g,'');
-    }
-    catch(e){
-        msg = textarea.val();
-    }
-    return {textarea: textarea, iframe: iframe, msg: msg };
+  //g_editable is intended to work with Gmail's new broken out window approach.
+  //we search based on event because it works well in case multiple compose windows are open
+  var msg;
+  var g_editable = $(event.currentTarget).parents().find('[g_editable]').first();
+  if (g_editable && g_editable.length > 0 && g_editable.html()) {
+    msg = g_editable.html().replace(/(<div>)/g,'\n');
+    msg = msg.replace(/(<\/div>)/g,'');
+    return {g_editable: g_editable, msg: msg};
+  }
+  var textarea = $('textarea[spellcheck="true"]',form);
+  var iframe = $('iframe',form).contents().find('body');
+  try{
+    msg = iframe.html().replace(/(<div>)/g,'\n');
+    msg = msg.replace(/(<\/div>)/g,'');
+  }
+  catch(e){
+    msg = textarea.val();
+  }
+  return {textarea: textarea, iframe: iframe, msg: msg };
 }
 
 //This could be streamlined as google has change this mechanism frequently.
 function writeContents(contents, message){
-    if (contents.g_editable) {
-        message = message.split('\n').join('<br/>');
-        contents.g_editable.html(message);
-        }
-    try{
-        contents.iframe[0].innerText = message;
-        }
-    catch(e){
+  if (contents.g_editable) {
+    message = message.split('\n').join('<br/>');
+    contents.g_editable.html(message);
+  }
+  try{
+    contents.iframe[0].innerText = message;
+  }
+  catch(e){
     //No iframe (rich editor) entry, only plaintext loaded
-    }
-    try{
-        contents.textarea.val(message);
-        }
-    catch(e){
+  }
+  try{
+    contents.textarea.val(message);
+  }
+  catch(e){
     //No plaintext editor
-    }
+  }
 
 }
 
@@ -225,14 +225,14 @@ function stopAutomaticDrafts(){
 }
 
 function showAlert(alert, form) {
-    if(form) {
-        var alertInForm = form.find('#'+alert.id);
-        if (alertInForm && alertInForm.length > 0) {
-            alertInForm.show();
-            return;
-        }
+  if(form) {
+    var alertInForm = form.find('#'+alert.id);
+    if (alertInForm && alertInForm.length > 0) {
+      alertInForm.show();
+      return;
     }
-    showModalAlert(alert.html);
+  }
+  showModalAlert(alert.html);
 }
 
 function showModalAlert(message) {
@@ -242,88 +242,88 @@ function showModalAlert(message) {
 
 var useComposeSubWindows = false;
 function composeIntercept(ev) {
-    var composeBoxes = $('.n1tfz');
-    if (composeBoxes && composeBoxes.length > 0) {
-        composeBoxes.each(function(){
-            var composeMenu = $(this).parent().parent().parent();
-            if (composeMenu && composeMenu.length> 0 && composeMenu.find('#gCryptEncrypt').length === 0) {
-                useComposeSubWindows = true;
-                var maxSizeCheck = composeMenu.parent().parent().parent().parent().parent().find('[style*="max-height"]');
-                //We have to check again because of rapidly changing elements
-                if(composeMenu.find('#gCryptEncrypt').length === 0) {
-                    //The below logic is for inserting the form into the windows, different behavior for in window compose and popout compose.
-                    var encryptionFormOptions = '<span id="gCryptEncrypt" class="btn-group" style="float:right"><a class="btn" href="#" id="encryptAndSign"><img src="'+chrome.extension.getURL("images/encryptIcon.png")+'" width=13 height=13/> Encrypt and Sign</a><a class="btn" href="#" id="encrypt">Encrypt</a><a class="btn" href="#" id="sign">Sign</a></span>';
+  var composeBoxes = $('.n1tfz');
+  if (composeBoxes && composeBoxes.length > 0) {
+    composeBoxes.each(function(){
+      var composeMenu = $(this).parent().parent().parent();
+      if (composeMenu && composeMenu.length> 0 && composeMenu.find('#gCryptEncrypt').length === 0) {
+        useComposeSubWindows = true;
+        var maxSizeCheck = composeMenu.parent().parent().parent().parent().parent().find('[style*="max-height"]');
+        //We have to check again because of rapidly changing elements
+        if(composeMenu.find('#gCryptEncrypt').length === 0) {
+          //The below logic is for inserting the form into the windows, different behavior for in window compose and popout compose.
+          var encryptionFormOptions = '<span id="gCryptEncrypt" class="btn-group" style="float:right"><a class="btn" href="#" id="encryptAndSign"><img src="'+chrome.extension.getURL("images/encryptIcon.png")+'" width=13 height=13/> Encrypt and Sign</a><a class="btn" href="#" id="encrypt">Encrypt</a><a class="btn" href="#" id="sign">Sign</a></span>';
 
-                    var encryptionForm = '<form class="form-inline" style="float:right"><input type="password" class="input-small" placeholder="password" id="gCryptPasswordEncrypt" style="font-size:12px;margin-top:5px;"></form>';
+          var encryptionForm = '<form class="form-inline" style="float:right"><input type="password" class="input-small" placeholder="password" id="gCryptPasswordEncrypt" style="font-size:12px;margin-top:5px;"></form>';
 
-                    if (maxSizeCheck && maxSizeCheck.length > 0 && maxSizeCheck.css('max-height') === maxSizeCheck.css('height')) {
-                        composeMenu.find('.n1tfz :nth-child(6)').after('<td class="gU" style="min-width: 360px;">' + encryptionFormOptions + '</td><td class="gU">' + encryptionForm + '</td>');
-                    }
-                    else {
-                        composeMenu.append(encryptionFormOptions + encryptionForm);
-                        composeMenu.css("height","80px");
-                    }
-                    composeMenu.find('#encryptAndSign').click(encryptAndSign);
-                    composeMenu.find('#encrypt').click(encrypt);
-                    composeMenu.find('#sign').click(sign);
-                    composeMenu.find('form[class="form-inline"]').submit(function(event){
-                        encryptAndSign(event);
-                        return false;
-                    });
-                }
-            }
-        });
-        chrome.extension.sendRequest({method: 'getOption', option: 'stopAutomaticDrafts'}, function(response){
-          if(response === true){
-            stopAutomaticDrafts();
+          if (maxSizeCheck && maxSizeCheck.length > 0 && maxSizeCheck.css('max-height') === maxSizeCheck.css('height')) {
+            composeMenu.find('.n1tfz :nth-child(6)').after('<td class="gU" style="min-width: 360px;">' + encryptionFormOptions + '</td><td class="gU">' + encryptionForm + '</td>');
           }
-        });
-    }
-    rootElement = $('#canvas_frame').length > 0 ? $('#canvas_frame').contents() : $(document);
-    var form = rootElement.find('form');
-    var menubar = form.find('td[class="fA"]');
-    if(menubar && menubar.length>0){
-        if(menubar.find('#gCryptEncrypt').length === 0){
-            menubar.append('<span id="gCryptEncrypt" class="btn-group"><a class="btn" href="#" id="encryptAndSign1"><img src="'+chrome.extension.getURL("images/encryptIcon.png")+'" width=13 height=13/> Encrypt</a><a class="btn dropdown-toggle" data-toggle="dropdown" href="#"><span class="caret"></span></a><ul class="dropdown-menu"><li id="encryptAndSign2"><a href="#">Encrypt (sign)</a></li><li id="encrypt"><a href="#">Encrypt (don\'t sign)</a></li><li id="sign"><a href="#">Sign only</a></li></ul></span><form class="form-inline"><input type="password" class="input-small" placeholder="password" id="gCryptPasswordEncrypt"></form>');
-            menubar.find('#encryptAndSign1').click(encryptAndSign);
-            menubar.find('#encryptAndSign2').click(encryptAndSign);
-            menubar.find('#encrypt').click(encrypt);
-            menubar.find('#sign').click(sign);
-            menubar.find('form[class="form-inline"]').submit(function(event){
-                encryptAndSign(event);
-                return false;
-            });
-
+          else {
+            composeMenu.append(encryptionFormOptions + encryptionForm);
+            composeMenu.css("height","80px");
+          }
+          composeMenu.find('#encryptAndSign').click(encryptAndSign);
+          composeMenu.find('#encrypt').click(encrypt);
+          composeMenu.find('#sign').click(sign);
+          composeMenu.find('form[class="form-inline"]').submit(function(event){
+            encryptAndSign(event);
+            return false;
+          });
         }
-    }
+      }
+    });
+    chrome.extension.sendRequest({method: 'getOption', option: 'stopAutomaticDrafts'}, function(response){
+      if(response === true){
+        stopAutomaticDrafts();
+      }
+    });
+  }
+  rootElement = $('#canvas_frame').length > 0 ? $('#canvas_frame').contents() : $(document);
+  var form = rootElement.find('form');
+  var menubar = form.find('td[class="fA"]');
+  if(menubar && menubar.length>0){
+    if(menubar.find('#gCryptEncrypt').length === 0){
+      menubar.append('<span id="gCryptEncrypt" class="btn-group"><a class="btn" href="#" id="encryptAndSign1"><img src="'+chrome.extension.getURL("images/encryptIcon.png")+'" width=13 height=13/> Encrypt</a><a class="btn dropdown-toggle" data-toggle="dropdown" href="#"><span class="caret"></span></a><ul class="dropdown-menu"><li id="encryptAndSign2"><a href="#">Encrypt (sign)</a></li><li id="encrypt"><a href="#">Encrypt (don\'t sign)</a></li><li id="sign"><a href="#">Sign only</a></li></ul></span><form class="form-inline"><input type="password" class="input-small" placeholder="password" id="gCryptPasswordEncrypt"></form>');
+      menubar.find('#encryptAndSign1').click(encryptAndSign);
+      menubar.find('#encryptAndSign2').click(encryptAndSign);
+      menubar.find('#encrypt').click(encrypt);
+      menubar.find('#sign').click(sign);
+      menubar.find('form[class="form-inline"]').submit(function(event){
+        encryptAndSign(event);
+        return false;
+      });
 
-    //Why is this not firing for all cases? It seems that if a page has been previously loaded it uses some sort of caching and won't fire the event
-    var viewTitleBar = rootElement.find('td[class="gH acX"]');
-    if(viewTitleBar && viewTitleBar.length > 0){
-        viewTitleBar.each(function(v){
-            if( $(this).find('#gCryptDecrypt').length === 0){
-                $(this).prepend('<span id="gCryptDecrypt"><a class="btn" href="#" id="decrypt"><img src="'+chrome.extension.getURL("images/decryptIcon.png")+'" width=13 height=13/ >Decrypt</a></span>');
-                $(this).find('#decrypt').click(decrypt);
-                $(this).append('<form class="form-inline"><input type="password" class="input-small" placeholder="password" id="gCryptPasswordDecrypt"></form>');
-                $(this).find('form[class="form-inline"]').submit(function(event){
-                    $(this).parent().find('a[class="btn"]').click();
-                    return false;
-                });
-                //TODO: <a class="btn" href="#" id="verifySignature">Check Signature</a>
-                //$(this).find('#verifySignature').click(verifySignature);
-            }
-        });
     }
+  }
 
-    var gmailCryptModal = $('#gCryptModal');
-    if(gmailCryptModal && gmailCryptModal.length === 0) {
-        $('.aAU').append('<div id="gCryptModal" class="modal hide fade" tabindex=-1 role="dialog"><div class="modal-header">' +
-                   '<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>' +
-                   '<h3>Mymail-Crypt for Gmail</h3></div><div id="gCryptModalBody" class="modal-body"></div></div>');
-        $('#gCryptModal').click(function() {
-            $('#gCryptModal').modal('hide');
+  //Why is this not firing for all cases? It seems that if a page has been previously loaded it uses some sort of caching and won't fire the event
+  var viewTitleBar = rootElement.find('td[class="gH acX"]');
+  if(viewTitleBar && viewTitleBar.length > 0){
+    viewTitleBar.each(function(v){
+      if( $(this).find('#gCryptDecrypt').length === 0){
+        $(this).prepend('<span id="gCryptDecrypt"><a class="btn" href="#" id="decrypt"><img src="'+chrome.extension.getURL("images/decryptIcon.png")+'" width=13 height=13/ >Decrypt</a></span>');
+        $(this).find('#decrypt').click(decrypt);
+        $(this).append('<form class="form-inline"><input type="password" class="input-small" placeholder="password" id="gCryptPasswordDecrypt"></form>');
+        $(this).find('form[class="form-inline"]').submit(function(event){
+          $(this).parent().find('a[class="btn"]').click();
+          return false;
         });
-    }
+        //TODO: <a class="btn" href="#" id="verifySignature">Check Signature</a>
+        //$(this).find('#verifySignature').click(verifySignature);
+      }
+    });
+  }
+
+  var gmailCryptModal = $('#gCryptModal');
+  if(gmailCryptModal && gmailCryptModal.length === 0) {
+    $('.aAU').append('<div id="gCryptModal" class="modal hide fade" tabindex=-1 role="dialog"><div class="modal-header">' +
+                     '<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>' +
+                     '<h3>Mymail-Crypt for Gmail</h3></div><div id="gCryptModalBody" class="modal-body"></div></div>');
+    $('#gCryptModal').click(function() {
+      $('#gCryptModal').modal('hide');
+    });
+  }
 }
 
 //This animation strategy inspired by http://blog.streak.com/2012/11/how-to-detect-dom-changes-in-css.html
