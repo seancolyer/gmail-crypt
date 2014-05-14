@@ -108,7 +108,9 @@ function sign(message, password) {
   if(privKey && privKey.type && privKey.type == "error") {
     return privKey;
   }
-  var cipherText = openpgp.signClearMessage(privKey, message);
+  //TODO use privKeys because openpgp.js wants this to be an array. Should unify it's interface.
+  var privKeys = [privKey];
+  var cipherText = openpgp.signClearMessage(privKeys, message);
   return cipherText;
 }
 
@@ -161,7 +163,7 @@ function decrypt(senderEmail, msg, password) {
 function verify(senderEmail, msg) {
   var status = [];
   try{
-    msg = openpgp.message.readArmored(msg);
+    msg = openpgp.cleartext.readArmored(msg);
   }
   catch (e) {
     status.push(gCryptAlerts.gCryptAlertDecryptNoMessage);
@@ -198,6 +200,7 @@ chrome.extension.onRequest.addListener(function(request,sender,sendResponse){
     }
     else if (request.method == "verify") {
       result = verify(request.senderEmail, request.msg);
+      sendResponse(result);
     }
     else if(request.method == "getOption") {
       result = getOption(request.option);

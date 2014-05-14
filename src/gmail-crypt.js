@@ -299,9 +299,9 @@ function composeIntercept(ev) {
 
   //Why is this not firing for all cases? It seems that if a page has been previously loaded it uses some sort of caching and won't fire the event
   var viewTitleBar = rootElement.find('td[class="gH acX"]');
-  if(viewTitleBar && viewTitleBar.length > 0){
-    viewTitleBar.each(function(v){
-      if( $(this).find('#gCryptDecrypt').length === 0){
+  if (viewTitleBar && viewTitleBar.length > 0) {
+    viewTitleBar.each(function(v) {
+      if ($(this).find('#gCryptDecrypt').length === 0) {
         $(this).prepend('<span id="gCryptDecrypt"><a class="btn" href="#" id="decrypt"><img src="'+chrome.extension.getURL("images/decryptIcon.png")+'" width=13 height=13/ >Decrypt</a></span>');
         $(this).find('#decrypt').click(decrypt);
         $(this).append('<form class="form-inline"><input type="password" class="input-small" placeholder="password" id="gCryptPasswordDecrypt"></form>');
@@ -309,8 +309,8 @@ function composeIntercept(ev) {
           $(this).parent().find('a[class="btn"]').click();
           return false;
         });
-        //TODO: <a class="btn" href="#" id="verifySignature">Check Signature</a>
-        //$(this).find('#verifySignature').click(verifySignature);
+        $(this).prepend('<span id="gCryptVerify"><a class="btn" href="#" id="verify">Verify Signature</a></span>');
+        $(this).find('#verify').click(verifySignature);
       }
     });
   }

@@ -1503,7 +1503,7 @@ module.exports = {
 
   show_version: true,
   show_comment: true,
-  versionstring: "OpenPGP.js v0.5.1",
+  versionstring: "OpenPGP.js v0.6.0",
   commentstring: "http://openpgpjs.org",
 
   keyserver: "keyserver.linux.it", // "pgp.mit.edu:11371"
@@ -11771,36 +11771,41 @@ function readArmored(armoredText) {
 /**
  * Generates a new OpenPGP key. Currently only supports RSA keys.
  * Primary and subkey will be of same type.
- * @param {module:enums.publicKey} keyType    to indicate what type of key to make.
+ * @param {module:enums.publicKey} [options.keyType=module:enums.publicKey.rsa_encrypt_sign]    to indicate what type of key to make.
  *                             RSA is 1. See {@link http://tools.ietf.org/html/rfc4880#section-9.1}
- * @param {Integer} numBits    number of bits for the key creation.
- * @param {String}  userId     assumes already in form of "User Name <username@email.com>"
- * @param {String}  passphrase The passphrase used to encrypt the resulting private key
+ * @param {Integer} options.numBits    number of bits for the key creation.
+ * @param {String}  options.userId     assumes already in form of "User Name <username@email.com>"
+ * @param {String}  options.passphrase The passphrase used to encrypt the resulting private key
+ * @param {Boolean} [options.unlocked=false]    The secret part of the generated key is unlocked
  * @return {module:key~Key}
  * @static
  */
-function generate(keyType, numBits, userId, passphrase) {
+function generate(options) {
+  options.keyType = options.keyType || enums.publicKey.rsa_encrypt_sign;
   // RSA Encrypt-Only and RSA Sign-Only are deprecated and SHOULD NOT be generated
-  if (keyType !== enums.publicKey.rsa_encrypt_sign) {
+  if (options.keyType !== enums.publicKey.rsa_encrypt_sign) {
     throw new Error('Only RSA Encrypt or Sign supported');
+  }
+  if (!options.passphrase) {
+    throw new Error('Parameter options.passphrase required');
   }
 
   var packetlist = new packet.List();
 
   var secretKeyPacket = new packet.SecretKey();
-  secretKeyPacket.algorithm = enums.read(enums.publicKey, keyType);
-  secretKeyPacket.generate(numBits);
-  secretKeyPacket.encrypt(passphrase);
+  secretKeyPacket.algorithm = enums.read(enums.publicKey, options.keyType);
+  secretKeyPacket.generate(options.numBits);
+  secretKeyPacket.encrypt(options.passphrase);
 
   var userIdPacket = new packet.Userid();
-  userIdPacket.read(userId);
+  userIdPacket.read(options.userId);
 
   var dataToSign = {};
   dataToSign.userid = userIdPacket;
   dataToSign.key = secretKeyPacket;
   var signaturePacket = new packet.Signature();
   signaturePacket.signatureType = enums.signature.cert_generic;
-  signaturePacket.publicKeyAlgorithm = keyType;
+  signaturePacket.publicKeyAlgorithm = options.keyType;
   signaturePacket.hashAlgorithm = config.prefer_hash_algorithm;
   signaturePacket.keyFlags = [enums.keyFlags.certify_keys | enums.keyFlags.sign_data];
   signaturePacket.preferredSymmetricAlgorithms = [];
@@ -11823,16 +11828,16 @@ function generate(keyType, numBits, userId, passphrase) {
   signaturePacket.sign(secretKeyPacket, dataToSign);
 
   var secretSubkeyPacket = new packet.SecretSubkey();
-  secretSubkeyPacket.algorithm = enums.read(enums.publicKey, keyType);
-  secretSubkeyPacket.generate(numBits);
-  secretSubkeyPacket.encrypt(passphrase);
+  secretSubkeyPacket.algorithm = enums.read(enums.publicKey, options.keyType);
+  secretSubkeyPacket.generate(options.numBits);
+  secretSubkeyPacket.encrypt(options.passphrase);
 
   dataToSign = {};
   dataToSign.key = secretKeyPacket;
   dataToSign.bind = secretSubkeyPacket;
   var subkeySignaturePacket = new packet.Signature();
   subkeySignaturePacket.signatureType = enums.signature.subkey_binding;
-  subkeySignaturePacket.publicKeyAlgorithm = keyType;
+  subkeySignaturePacket.publicKeyAlgorithm = options.keyType;
   subkeySignaturePacket.hashAlgorithm = config.prefer_hash_algorithm;
   subkeySignaturePacket.keyFlags = [enums.keyFlags.encrypt_communication | enums.keyFlags.encrypt_storage];
   subkeySignaturePacket.sign(secretKeyPacket, dataToSign);
@@ -11842,6 +11847,11 @@ function generate(keyType, numBits, userId, passphrase) {
   packetlist.push(signaturePacket);
   packetlist.push(secretSubkeyPacket);
   packetlist.push(subkeySignaturePacket);
+
+  if (!options.unlocked) {
+    secretKeyPacket.clearPrivateMPIs();
+    secretSubkeyPacket.clearPrivateMPIs();
+  }
 
   return new Key(packetlist);
 }
@@ -12743,24 +12753,25 @@ function verifyClearSignedMessage(publicKeys, msg, callback) {
 /**
  * Generates a new OpenPGP key pair. Currently only supports RSA keys.
  * Primary and subkey will be of same type.
- * @param {module:enums.publicKey} keyType    to indicate what type of key to make.
+ * @param {module:enums.publicKey} [options.keyType=module:enums.publicKey.rsa_encrypt_sign]    to indicate what type of key to make.
  *                             RSA is 1. See {@link http://tools.ietf.org/html/rfc4880#section-9.1}
- * @param {Integer} numBits    number of bits for the key creation. (should be 1024+, generally)
- * @param {String}  userId     assumes already in form of "User Name <username@email.com>"
- * @param {String}  passphrase The passphrase used to encrypt the resulting private key
+ * @param {Integer} options.numBits    number of bits for the key creation. (should be 1024+, generally)
+ * @param {String}  options.userId     assumes already in form of "User Name <username@email.com>"
+ * @param {String}  options.passphrase The passphrase used to encrypt the resulting private key
+ * @param {Boolean} [options.unlocked=false]    The secret part of the generated key is unlocked
  * @param  {function} callback (optional) callback(error, result) for async style
  * @return {Object} {key: module:key~Key, privateKeyArmored: String, publicKeyArmored: String}
  * @static
  */
-function generateKeyPair(keyType, numBits, userId, passphrase, callback) {
+function generateKeyPair(options, callback) {
   if (useWorker(callback)) {
-    asyncProxy.generateKeyPair(keyType, numBits, userId, passphrase, callback);
+    asyncProxy.generateKeyPair(options, callback);
     return;
   }
 
   return execute(function() {
     var result = {};
-    var newKey = key.generate(keyType, numBits, userId, passphrase);
+    var newKey = key.generate(options);
     result.key = newKey;
     result.privateKeyArmored = newKey.armor();
     result.publicKeyArmored = newKey.toPublic().armor();
@@ -14523,7 +14534,6 @@ SecretKey.prototype.encrypt = function (passphrase) {
     blockLen = crypto.cipher[symmetric].blockSize,
     iv = crypto.random.getRandomBytes(blockLen);
 
-
   this.encrypted = '';
   this.encrypted += String.fromCharCode(254);
   this.encrypted += String.fromCharCode(enums.write(enums.symmetric, symmetric));
@@ -14596,8 +14606,9 @@ SecretKey.prototype.decrypt = function (passphrase) {
     'mod';
 
   var parsedMPI = parse_cleartext_mpi(hash, cleartext, this.algorithm);
-  if (parsedMPI instanceof Error)
+  if (parsedMPI instanceof Error) {
     return false;
+  }
   this.mpi = this.mpi.concat(parsedMPI);
   this.isDecrypted = true;
   return true;
@@ -14606,6 +14617,14 @@ SecretKey.prototype.decrypt = function (passphrase) {
 SecretKey.prototype.generate = function (bits) {
   this.mpi = crypto.generateMpi(this.algorithm, bits);
   this.isDecrypted = true;
+};
+
+/**
+ * Clear private MPIs, return to initial state
+ */
+SecretKey.prototype.clearPrivateMPIs = function () {
+  this.mpi = this.mpi.slice(0, crypto.getPublicMpiCount(this.algorithm));
+  this.isDecrypted = false;
 };
 
 },{"../crypto":19,"../enums.js":30,"../type/mpi.js":59,"../type/s2k.js":60,"../util.js":61,"./public_key.js":46}],50:[function(require,module,exports){
@@ -16779,13 +16798,10 @@ AsyncProxy.prototype.verifyClearSignedMessage = function(publicKeys, message, ca
  * @param {String}  passphrase The passphrase used to encrypt the resulting private key
  * @param {Function} callback receives object with key and public and private armored texts
  */
-AsyncProxy.prototype.generateKeyPair = function(keyType, numBits, userId, passphrase, callback) {
+AsyncProxy.prototype.generateKeyPair = function(options, callback) {
   this.worker.postMessage({
     event: 'generate-key-pair', 
-    keyType: keyType, 
-    numBits: numBits, 
-    userId: userId, 
-    passphrase: passphrase
+    options: options
   });
   this.tasks.push(function(err, data) {
     if (data) {
