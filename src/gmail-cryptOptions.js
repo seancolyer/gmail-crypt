@@ -93,9 +93,6 @@ function parseKeys(keys, domPrefix){
   });
 }
 
-/**
- * We use openpgp.config for storing our options.
- */
 function saveOptions(){
   saveOptionForCheckbox('stopAutomaticDrafts', 'stopAutomaticDrafts', true);
   saveOptionForCheckbox('includeMyself', 'includeMyself', true);
