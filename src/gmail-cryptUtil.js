@@ -34,6 +34,43 @@ var gCryptUtil = {
     },
 
     notify: function(msg){
+    },
+
+    getOption: function (config, optionName, thirdParty) {
+      if(!config.config) {
+        throw new Error("config is not properly set up");
+      }
+      if (thirdParty) {
+        var gCryptSettings = config.config.thirdParty;
+        if(!gCryptSettings || !gCryptSettings.mymailCrypt){
+          return;
+        }
+        else{
+          return gCryptSettings.mymailCrypt[optionName];
+        }
+      }
+      else {
+        return config.config[optionName];
+      }
+    },
+
+    setOption: function(config, optionName, value, thirdParty) {
+      if (!config.config) {
+        throw new Error("config is not properly set up");
+      }
+      if (!config.config.thirdParty) {
+          config.config.thirdParty = {
+            mymailCrypt: {}
+          };
+      }
+      if (thirdParty) {
+        var gCryptSettings = config.config.thirdParty.mymailCrypt;
+        gCryptSettings[optionName] = value;
+      }
+      else {
+        config.config[optionName] = value;
+      }
+      config.write();
     }
 
 };

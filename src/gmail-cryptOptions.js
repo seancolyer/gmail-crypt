@@ -1,4 +1,5 @@
 var keyring;
+var config;
 var privateKeyFormToggle = true;
 var publicKeyFormToggle = true;
 var generateKeyFormToggle = true;
@@ -10,10 +11,15 @@ function showMessages(msg){
 function generateKeyPair(){
   $('.alert').hide();
   var form = $('#generateKeyPairForm');
-  var keyPair = openpgp.generate_key_pair(1,parseInt(form.find('#numBits').val(), 10), form.find('#name').val() + ' <' + form.find('#email').val() + '>', form.find('#password').val());
-  openpgp.keyring.importPrivateKey(keyPair.privateKeyArmored, form.find('#password').val());
-  openpgp.keyring.importPublicKey(keyPair.publicKeyArmored);
-  openpgp.keyring.store();
+  var generateOptions = {
+          numBits: parseInt(form.find('#numBits').val(), 10),
+          userId: form.find('#name').val() + ' <' + form.find('#email').val() + '>',
+          passphrase: form.find('#password').val()
+  };
+  var keyPair = openpgp.generateKeyPair(generateOptions);
+  keyring.privateKeys.importKey(keyPair.privateKeyArmored);
+  keyring.publicKeys.importKey(keyPair.publicKeyArmored);
+  keyring.store();
   parsePrivateKeys();
   parsePublicKeys();
 }
@@ -23,18 +29,19 @@ function insertPrivateKey(){
   var privKey = $('#newPrivateKey').val();
   var privKeyPassword = $('#newPrivateKeyPassword').val();
   try{
-    if(openpgp.keyring.importPrivateKey(privKey, privKeyPassword)){
-      openpgp.keyring.store();
+    var importResult = keyring.privateKeys.importKey(privKey);
+    if(importResult == null){
+      keyring.store();
       parsePrivateKeys();
       return true;
     }
     else{
-      $('#insertPrivateKeyForm').prepend('<div class="alert alert-error" id="gCryptAlertPassword">Mymail-Crypt for Gmail was unable to read your key. Is your password correct?</div>');
+      $('#insertPrivateKeyForm').prepend('<div class="alert alert-error" id="gCryptAlertOpenpgpjs">' + importResult  + '</div>');
     }
   }
   catch(e){
+    $('#insertPrivateKeyForm').prepend('<div class="alert alert-error" id="gCryptAlertPassword">Mymail-Crypt for Gmail was unable to read your key. It would be great if you could contact us so we can help figure out what went wrong.</div>');
   }
-  $('#insertPrivateKeyForm').prepend('<div class="alert alert-error" id="gCryptAlertPassword">Mymail-Crypt for Gmail was unable to read your key. It would be great if you could contact us so we can help figure out what went wrong.</div>');
   return false;
 }
 
@@ -42,8 +49,8 @@ function insertPublicKey(){
   $('.alert').hide();
   var pubKey = $('#newPublicKey').val();
   try{
-    openpgp.keyring.importPublicKey(pubKey);
-    openpgp.keyring.store();
+    keyring.publicKeys.importKey(pubKey);
+    keyring.store();
     parsePublicKeys();
     return true;
   }
@@ -54,39 +61,35 @@ function insertPublicKey(){
 }
 
 function parsePublicKeys(){
-  var keys = openpgp.keyring.publicKeys;
-  $('#publicKeyTable>tbody>tr').remove();
-  for(var k=0;k<keys.length;k++){
-    var key = keys[k];
-    var user = gCryptUtil.parseUser(key.obj.userIds[0].text);
-    $('#publicKeyTable>tbody').append('<tr><td class="removeLink" id="'+k+'"><a href="#">remove</a></td><td>'+user.userName+'</td><td>'+user.userEmail+'</td><td>'+util.hexstrdump(key.keyId)+'</td><td><a href="#public'+k+'" data-toggle="modal">show key</a><div class="modal" id="public'+k+'"><a class=modal-body"><a href="#" class="close" data-dismiss="modal">Close</a><br/ ><pre>'+key.armored + '</pre></div></div></td></tr>');
-    $('#public'+k).hide();
-    $('#public'+k).modal({backdrop: true, show: false});
-  }
-  $('#publicKeyTable .removeLink').click(function(e){
-    openpgp.keyring.removePublicKey(e.currentTarget.id);
-    openpgp.keyring.store();
-    parsePublicKeys();
-  });
+  var keys = keyring.publicKeys.keys;
+  var domPrefix = "public";
+
+  parseKeys(keys, domPrefix);
 }
 
-function parsePrivateKeys(){
+function parsePrivateKeys() {
   var keys = keyring.privateKeys.keys;
-  $('#privateKeyTable>tbody>tr').remove();
+  var domPrefix = "private";
+
+  parseKeys(keys, domPrefix);
+}
+
+function parseKeys(keys, domPrefix){
+  $('#' + domPrefix + 'KeyTable>tbody>tr').remove();
   for(var k = 0; k < keys.length; k++) {
     var key = keys[k];
     var user = gCryptUtil.parseUser(key.users[0].userId.userid);
-    $('#privateKeyTable>tbody').append('<tr><td class="removeLink" id="' + k + '"><a href="#">remove</a></td>' +
+    $('#' + domPrefix + 'KeyTable>tbody').append('<tr><td class="removeLink" id="' + k + '"><a href="#">remove</a></td>' +
                                        '<td>' + user.userName + '</td>' +
                                        '<td>' + user.userEmail + '</td>' +
-                                       '<td><a href="#private'+ k +'" data-toggle="modal">show key</a><div class="modal" id="' + k + '"><div class="modal-body"><a class="close" data-dismiss="modal">Close</a><br/ ><pre>' + key.armor() + '</pre></div></div></td></tr>');
-    $('#private' + k).hide();
-    $('#private' + k).modal({backdrop: true, show: false});
+                                       '<td><a href="#' + domPrefix + k +'" data-toggle="modal">show key</a><div class="modal" id="' + domPrefix + k + '"><div class="modal-body"><a class="close" data-dismiss="modal">Close</a><br/ ><pre>' + key.armor() + '</pre></div></div></td></tr>');
+    $('#' + domPrefix + k).hide();
+    $('#' + domPrefix + k).modal({backdrop: true, show: false});
   }
-  $('#privateKeyTable .removeLink').click(function(e){
-    keyring.privateKeys.keys.splice(e.currentTarget.id);
+  $('#' + domPrefix + 'KeyTable .removeLink').click(function(e){
+    keys.splice(e.currentTarget.id);
     keyring.store();
-    parsePrivateKeys();
+    parseKeys(keys, domPrefix);
   });
 }
 
@@ -94,47 +97,32 @@ function parsePrivateKeys(){
  * We use openpgp.config for storing our options.
  */
 function saveOptions(){
-  var gCryptSettings = openpgp.config.config.gCrypt;
-  if(!gCryptSettings){
-    gCryptSettings = {};
-  }
-  if($('#stopAutomaticDrafts:checked').length == 1){
-    gCryptSettings.stopAutomaticDrafts = true;
+  saveOptionForCheckbox('stopAutomaticDrafts', 'stopAutomaticDrafts', true);
+  saveOptionForCheckbox('includeMyself', 'includeMyself', true);
+  saveOptionForCheckbox('showComment', 'show_comment', false);
+  saveOptionForCheckbox('showVersion', 'show_version', false);
+}
+
+function saveOptionForCheckbox(elementId, configKey, thirdParty) {
+  if($('#' + elementId + ':checked').length == 1){
+    gCryptUtil.setOption(config, configKey, true, thirdParty);
   } else {
-    gCryptSettings.stopAutomaticDrafts = false;
-  }
-  if($('#includeMyself:checked').length == 1){
-    gCryptSettings.includeMyself = true;
-  } else {
-    gCryptSettings.includeMyself = false;
-  }
-  if($('#showComment:checked').length == 1){
-    openpgp.config.config.show_comment = true;
-  } else {
-    openpgp.config.config.show_comment = false;
-  }
-  if($('#showVersion:checked').length == 1){
-    openpgp.config.config.show_version = true;
-  } else {
-    openpgp.config.config.show_version = false;
+    gCryptUtil.setOption(config, configKey, false, thirdParty);
   }
 
-  openpgp.config.config.gCrypt = gCryptSettings;
-  openpgp.config.write();
 }
 
 function loadOptions(){
-  var gCryptSettings = openpgp.config.config.gCrypt;
-  if (gCryptSettings && gCryptSettings.stopAutomaticDrafts){
+  if (gCryptUtil.getOption(config, 'stopAutomaticDrafts', true)) {
     $('#stopAutomaticDrafts').attr('checked', true);
   }
-  if (gCryptSettings && gCryptSettings.includeMyself) {
+  if (gCryptUtil.getOption(config, 'includeMyself', true)) {
     $('#includeMyself').attr('checked', true);
   }
-  if (openpgp.config.config.show_comment){
+  if (gCryptUtil.getOption(config, 'show_comment', false)) {
     $('#showComment').attr('checked', true);
   }
-  if (openpgp.config.config.show_version){
+  if (gCryptUtil.getOption(config, 'show_version', false)) {
     $('#showVersion').attr('checked', true);
   }
 }
@@ -149,6 +137,9 @@ function linkLocalFunction(event){
 
 function onLoad(){
   keyring = new openpgp.Keyring();
+  //TODO openpgp.js needs to improve config support, this is a hack.
+  config = new openpgp.config.localStorage();
+  config.read();
   parsePrivateKeys();
   parsePublicKeys();
   loadOptions();

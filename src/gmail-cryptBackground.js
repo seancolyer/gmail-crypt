@@ -5,7 +5,8 @@
  * See included "LICENSE" file for details.
  */
 
-var keyring;
+var keyring,
+    config;
 
 //Grouping all alerts in one place, easy to access. Consider moving .html to a format function, since they are heavily pattern based.
 var gCryptAlerts = {
@@ -27,12 +28,12 @@ var gCryptAlerts = {
 
 
 function getOption(optionName) {
-  var gCryptSettings = openpgp.config.thirdParty;
-  if(!gCryptSettings || !gCryptSettings.config){
+  var gCryptSettings = config.config.thirdParty;
+  if(!gCryptSettings || !gCryptSettings.mymail-crypt){
     return;
   }
   else{
-    return gCryptSettings.config[optionName];
+    return gCryptSettings.mymail-crypt[optionName];
   }
 }
 
@@ -212,6 +213,9 @@ chrome.extension.onRequest.addListener(function(request,sender,sendResponse){
 
 function onLoad(){
   keyring = new openpgp.Keyring();
+  //TODO openpgp.js needs to improve config support, this is a hack.
+  config = new openpgp.config.localStorage();
+  config.read();
 }
 
 document.onload = onLoad();

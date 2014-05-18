@@ -83,22 +83,22 @@ CleartextMessage.prototype.sign = function(privateKeys) {
 
 /**
  * Verify signatures of cleartext signed message
- * @param {Array<module:key~Key>} publicKeys public keys to verify signatures
+ * @param {Array<module:key~Key>} keys array of keys to verify signatures
  * @return {Array<{keyid: module:type/keyid, valid: Boolean}>} list of signer's keyid and validity of signature
  */
-CleartextMessage.prototype.verify = function(publicKeys) {
+CleartextMessage.prototype.verify = function(keys) {
   var result = [];
   var signatureList = this.packets.filterByTag(enums.packet.signature);
   var literalDataPacket = new packet.Literal();
   // we assume that cleartext signature is generated based on UTF8 cleartext
   literalDataPacket.setText(this.text);
-  publicKeys.forEach(function(pubKey) {
+  keys.forEach(function(key) {
     for (var i = 0; i < signatureList.length; i++) {
-      var publicKeyPacket = pubKey.getPublicKeyPacket([signatureList[i].issuerKeyId]);
-      if (publicKeyPacket) {
+      var keyPacket = key.getKeyPacket([signatureList[i].issuerKeyId]);
+      if (keyPacket) {
         var verifiedSig = {};
         verifiedSig.keyid = signatureList[i].issuerKeyId;
-        verifiedSig.valid = signatureList[i].verify(publicKeyPacket, literalDataPacket);
+        verifiedSig.valid = signatureList[i].verify(keyPacket, literalDataPacket);
         result.push(verifiedSig);
         break;
       }
@@ -196,7 +196,7 @@ function verifyHeaders(headers, packetlist) {
 exports.CleartextMessage = CleartextMessage;
 exports.readArmored = readArmored;
 
-},{"./config":4,"./encoding/armor.js":28,"./enums.js":30,"./packet":40}],2:[function(require,module,exports){
+},{"./config":4,"./encoding/armor.js":29,"./enums.js":31,"./packet":41}],2:[function(require,module,exports){
 JXG = {
   exists: (function(undefined) {
     return function(v) {
@@ -1503,7 +1503,7 @@ module.exports = {
 
   show_version: true,
   show_comment: true,
-  versionstring: "OpenPGP.js v0.6.0",
+  versionstring: "OpenPGP.js v0.6.1-dev",
   commentstring: "http://openpgpjs.org",
 
   keyserver: "keyserver.linux.it", // "pgp.mit.edu:11371"
@@ -1512,14 +1512,50 @@ module.exports = {
   debug: false
 };
 
-},{"../enums.js":30}],4:[function(require,module,exports){
+},{"../enums.js":31}],4:[function(require,module,exports){
 /**
  * @see module:config/config
  * @module config
  */
 module.exports = require('./config.js');
+module.exports.localStorage = require('./localStorage.js');
 
-},{"./config.js":3}],5:[function(require,module,exports){
+},{"./config.js":3,"./localStorage.js":5}],5:[function(require,module,exports){
+/**
+ * This object storing and retrieving configuration from HTML5 local storage.
+ * @module config/localStorage
+ */
+
+module.exports = LocalStorage;
+
+/**
+ * @constructor
+ */
+function LocalStorage() {
+}
+
+/**
+ * Reads the config out of the HTML5 local storage
+ * and initializes the object config.
+ * if config is null the default config will be used
+ */
+LocalStorage.prototype.read = function () {
+  var cf = JSON.parse(window.localStorage.getItem("config"));
+  if (cf === null) {
+    this.config = this.default_config;
+    this.write();
+  } else
+    this.config = cf;
+};
+
+/**
+ * Writes the config to HTML5 local storage
+ */
+LocalStorage.prototype.write = function () {
+  window.localStorage.setItem("config", JSON.stringify(this.config));
+};
+
+},{}],6:[function(require,module,exports){
 // Modified by Recurity Labs GmbH 
 
 // modified version of http://www.hanewin.net/encrypt/PGdecode.js:
@@ -1813,7 +1849,7 @@ module.exports = {
   }
 };
 
-},{"../util.js":61,"./cipher":10}],6:[function(require,module,exports){
+},{"../util.js":62,"./cipher":11}],7:[function(require,module,exports){
 /* Rijndael (AES) Encryption
  * Copyright 2005 Herbert Hanewinkel, www.haneWIN.de
  * version 1.1, check www.haneWIN.de for the latest version
@@ -2332,7 +2368,7 @@ for (var i in types) {
   module.exports[types[i]] = makeClass(types[i]);
 }
 
-},{"../../util.js":61}],7:[function(require,module,exports){
+},{"../../util.js":62}],8:[function(require,module,exports){
 /* Modified by Recurity Labs GmbH 
  * 
  * Originally written by nklein software (nklein.com)
@@ -2750,7 +2786,7 @@ module.exports = BF;
 module.exports.keySize = BF.prototype.keySize = 16;
 module.exports.blockSize = BF.prototype.blockSize = 16;
 
-},{"../../util.js":61}],8:[function(require,module,exports){
+},{"../../util.js":62}],9:[function(require,module,exports){
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -3359,7 +3395,7 @@ module.exports = cast5;
 module.exports.blockSize = cast5.prototype.blockSize = 8;
 module.exports.keySize = cast5.prototype.keySize = 16;
 
-},{"../../util.js":61}],9:[function(require,module,exports){
+},{"../../util.js":62}],10:[function(require,module,exports){
 //Paul Tero, July 2001
 //http://www.tero.co.uk/des/
 //
@@ -3770,7 +3806,7 @@ module.exports = {
   originalDes: OriginalDes
 };
 
-},{"../../util.js":61}],10:[function(require,module,exports){
+},{"../../util.js":62}],11:[function(require,module,exports){
 /**
  * @requires crypto/cipher/aes
  * @requires crypto/cipher/blowfish
@@ -3804,7 +3840,7 @@ for (var i in aes) {
   module.exports['aes' + i] = aes[i];
 }
 
-},{"./aes.js":6,"./blowfish.js":7,"./cast5.js":8,"./des.js":9,"./twofish.js":11}],11:[function(require,module,exports){
+},{"./aes.js":7,"./blowfish.js":8,"./cast5.js":9,"./des.js":10,"./twofish.js":12}],12:[function(require,module,exports){
 /* Modified by Recurity Labs GmbH 
  * 
  * Cipher.js
@@ -4175,7 +4211,7 @@ module.exports = TF;
 module.exports.keySize = TF.prototype.keySize = 32;
 module.exports.blockSize = TF.prototype.blockSize = 16;
 
-},{"../../util.js":61}],12:[function(require,module,exports){
+},{"../../util.js":62}],13:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -4406,7 +4442,7 @@ module.exports = {
   }
 };
 
-},{"../type/mpi.js":59,"./cipher":10,"./public_key":23,"./random.js":26}],13:[function(require,module,exports){
+},{"../type/mpi.js":60,"./cipher":11,"./public_key":24,"./random.js":27}],14:[function(require,module,exports){
 /**
  * Secure Hash Algorithm with 256-bit digest (SHA-256) implementation.
  *
@@ -4697,7 +4733,7 @@ sha256.create = function() {
 
   return md;
 };
-},{"./forge_util.js":14}],14:[function(require,module,exports){
+},{"./forge_util.js":15}],15:[function(require,module,exports){
 /**
  * Utility functions for web applications.
  *
@@ -5535,7 +5571,7 @@ util.decodeUtf8 = function(str) {
   return decodeURIComponent(escape(str));
 };
 
-},{}],15:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 /**
  * @requires crypto/hash/sha
  * @module crypto/hash
@@ -5628,7 +5664,7 @@ module.exports = {
   }
 };
 
-},{"./forge_sha256.js":13,"./md5.js":16,"./ripe-md.js":17,"./sha.js":18}],16:[function(require,module,exports){
+},{"./forge_sha256.js":14,"./md5.js":17,"./ripe-md.js":18,"./sha.js":19}],17:[function(require,module,exports){
 /**
  * A fast MD5 JavaScript implementation
  * Copyright (c) 2012 Joseph Myers
@@ -5847,7 +5883,7 @@ if (md5('hello') != '5d41402abc4b2a76b9719d911017c592') {
   }
 }
 
-},{"../../util.js":61}],17:[function(require,module,exports){
+},{"../../util.js":62}],18:[function(require,module,exports){
 /*
  * CryptoMX Tools
  * Copyright (C) 2004 - 2006 Derek Buitenhuis
@@ -6146,7 +6182,7 @@ function RMDstring(message) {
 
 module.exports = RMDstring;
 
-},{}],18:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 /* A JavaScript implementation of the SHA family of hashes, as defined in FIPS 
  * PUB 180-2 as well as the corresponding HMAC implementation as defined in
  * FIPS PUB 198a
@@ -7273,7 +7309,7 @@ module.exports = {
   }
 };
 
-},{}],19:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 /**
  * @see module:crypto/crypto
  * @module crypto
@@ -7300,7 +7336,7 @@ var crypto = require('./crypto.js');
 for (var i in crypto)
   module.exports[i] = crypto[i];
 
-},{"./cfb.js":5,"./cipher":10,"./crypto.js":12,"./hash":15,"./pkcs1.js":20,"./public_key":23,"./random.js":26,"./signature.js":27}],20:[function(require,module,exports){
+},{"./cfb.js":6,"./cipher":11,"./crypto.js":13,"./hash":16,"./pkcs1.js":21,"./public_key":24,"./random.js":27,"./signature.js":28}],21:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -7473,7 +7509,7 @@ module.exports = {
   }
 };
 
-},{"../util.js":61,"./crypto.js":12,"./hash":15,"./public_key/jsbn.js":24,"./random.js":26}],21:[function(require,module,exports){
+},{"../util.js":62,"./crypto.js":13,"./hash":16,"./public_key/jsbn.js":25,"./random.js":27}],22:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -7657,7 +7693,7 @@ function DSA() {
 
 module.exports = DSA;
 
-},{"../../config":4,"../../util.js":61,"../hash":15,"../random.js":26,"./jsbn.js":24}],22:[function(require,module,exports){
+},{"../../config":4,"../../util.js":62,"../hash":16,"../random.js":27,"./jsbn.js":25}],23:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -7718,7 +7754,7 @@ function Elgamal() {
 
 module.exports = Elgamal;
 
-},{"../../util.js":61,"../random.js":26,"./jsbn.js":24}],23:[function(require,module,exports){
+},{"../../util.js":62,"../random.js":27,"./jsbn.js":25}],24:[function(require,module,exports){
 /**
  * @requires crypto/public_key/dsa
  * @requires crypto/public_key/elgamal
@@ -7734,7 +7770,7 @@ module.exports = {
   dsa: require('./dsa.js')
 };
 
-},{"./dsa.js":21,"./elgamal.js":22,"./rsa.js":25}],24:[function(require,module,exports){
+},{"./dsa.js":22,"./elgamal.js":23,"./rsa.js":26}],25:[function(require,module,exports){
 /*
  * Copyright (c) 2003-2005  Tom Wu (tjw@cs.Stanford.EDU) 
  * All Rights Reserved.
@@ -9447,7 +9483,7 @@ BigInteger.prototype.toMPI = bnToMPI;
 // JSBN-specific extension
 BigInteger.prototype.square = bnSquare;
 
-},{"../../util.js":61,"./jsbn.js":24}],25:[function(require,module,exports){
+},{"../../util.js":62,"./jsbn.js":25}],26:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -9630,7 +9666,7 @@ function RSA() {
 
 module.exports = RSA;
 
-},{"../../config":4,"../../util.js":61,"../random.js":26,"./jsbn.js":24}],26:[function(require,module,exports){
+},{"../../config":4,"../../util.js":62,"../random.js":27,"./jsbn.js":25}],27:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -9825,7 +9861,7 @@ RandomBuffer.prototype.get = function(buf) {
   }
 };
 
-},{"../type/mpi.js":59,"crypto":false}],27:[function(require,module,exports){
+},{"../type/mpi.js":60,"crypto":false}],28:[function(require,module,exports){
 /**
  * @requires crypto/hash
  * @requires crypto/pkcs1
@@ -9935,7 +9971,7 @@ module.exports = {
   }
 };
 
-},{"./hash":15,"./pkcs1.js":20,"./public_key":23}],28:[function(require,module,exports){
+},{"./hash":16,"./pkcs1.js":21,"./public_key":24}],29:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 //
@@ -10149,7 +10185,8 @@ function createcrc24(input) {
  * and an attribute "body" containing the body.
  */
 function splitHeaders(text) {
-  var reEmptyLine = /^\s*\n/m;
+  // empty line with whitespace characters
+  var reEmptyLine = /^[ \f\r\t\u00a0\u2000-\u200a\u202f\u205f\u3000]*\n/m;
   var headers = '';
   var body = text;
 
@@ -10344,7 +10381,7 @@ module.exports = {
   decode: dearmor
 };
 
-},{"../config":4,"../enums.js":30,"./base64.js":29}],29:[function(require,module,exports){
+},{"../config":4,"../enums.js":31,"./base64.js":30}],30:[function(require,module,exports){
 /* OpenPGP radix-64/base64 string encoding/decoding
  * Copyright 2005 Herbert Hanewinkel, www.haneWIN.de
  * version 1.0, check www.haneWIN.de for the latest version
@@ -10447,7 +10484,7 @@ module.exports = {
   decode: r2s
 };
 
-},{}],30:[function(require,module,exports){
+},{}],31:[function(require,module,exports){
 /**
  * @module enums
  */
@@ -10766,7 +10803,7 @@ module.exports = {
   }
 };
 
-},{}],31:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 
 module.exports = require('./openpgp.js');
 /**
@@ -10840,7 +10877,7 @@ module.exports.Keyring = require('./keyring');
  */
 module.exports.AsyncProxy = require('./worker/async_proxy.js');
 
-},{"./cleartext.js":1,"./config/config.js":3,"./crypto":19,"./encoding/armor.js":28,"./enums.js":30,"./key.js":32,"./keyring":33,"./message.js":36,"./openpgp.js":37,"./packet":40,"./type/keyid.js":58,"./type/mpi.js":59,"./type/s2k.js":60,"./util.js":61,"./worker/async_proxy.js":62}],32:[function(require,module,exports){
+},{"./cleartext.js":1,"./config/config.js":3,"./crypto":20,"./encoding/armor.js":29,"./enums.js":31,"./key.js":33,"./keyring":34,"./message.js":37,"./openpgp.js":38,"./packet":41,"./type/keyid.js":59,"./type/mpi.js":60,"./type/s2k.js":61,"./util.js":62,"./worker/async_proxy.js":63}],33:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -10997,14 +11034,6 @@ Key.prototype.toPacketlist = function() {
 };
 
 /** 
- * Returns the primary key packet (secret or public)
- * @returns {(module:packet/secret_key|module:packet/public_key|null)} 
- */
-Key.prototype.getKeyPacket = function() {
-  return this.primaryKey;
-};
-
-/** 
  * Returns all the private and public subkey packets
  * @returns {Array<(module:packet/public_subkey|module:packet/secret_subkey)>} 
  */
@@ -11023,7 +11052,7 @@ Key.prototype.getSubkeyPackets = function() {
  * @returns {Array<(module:packet/public_subkey|module:packet/secret_subkey|module:packet/secret_key|module:packet/public_key)>} 
  */
 Key.prototype.getAllKeyPackets = function() {
-  return [this.getKeyPacket()].concat(this.getSubkeyPackets());
+  return [this.primaryKey].concat(this.getSubkeyPackets());
 };
 
 /** 
@@ -11039,7 +11068,14 @@ Key.prototype.getKeyIds = function() {
   return keyIds;
 };
 
-function findKey(keys, keyIds) {
+/**
+ * Returns first key packet for given array of key IDs
+ * @param  {Array<module:type/keyid>} keyIds
+ * @return {(module:packet/public_subkey|module:packet/public_key|
+ *           module:packet/secret_subkey|module:packet/secret_key|null)}
+ */
+Key.prototype.getKeyPacket = function(keyIds) {
+  var keys = this.getAllKeyPackets();
   for (var i = 0; i < keys.length; i++) {
     var keyId = keys[i].getKeyId(); 
     for (var j = 0; j < keyIds.length; j++) {
@@ -11049,32 +11085,6 @@ function findKey(keys, keyIds) {
     }
   }
   return null;
-}
-
-/**
- * Returns first public key packet for given array of key IDs
- * @param  {Array<module:type/keyid>} keyIds 
- * @return {(module:packet/public_subkey|module:packet/public_key|null)}
- */
-Key.prototype.getPublicKeyPacket = function(keyIds) {
-  if (this.primaryKey.tag == enums.packet.publicKey) {
-    return findKey(this.getAllKeyPackets(), keyIds);  
-  } else {
-    return null;
-  }  
-};
-
-/**
- * Returns first private key packet for given array of key IDs
- * @param  {Array<module:type/keyid>} keyIds
- * @return {(module:packet/secret_subkey|module:packet/secret_key|null)}
- */
-Key.prototype.getPrivateKeyPacket = function(keyIds) {
-  if (this.primaryKey.tag == enums.packet.secretKey) {
-    return findKey(this.getAllKeyPackets(), keyIds);  
-  } else {
-    return null;
-  }
 };
 
 /**
@@ -11894,7 +11904,7 @@ exports.readArmored = readArmored;
 exports.generate = generate;
 exports.getPreferredSymAlgo = getPreferredSymAlgo;
 
-},{"./config":4,"./encoding/armor.js":28,"./enums.js":30,"./packet":40,"./util":61}],33:[function(require,module,exports){
+},{"./config":4,"./encoding/armor.js":29,"./enums.js":31,"./packet":41,"./util":62}],34:[function(require,module,exports){
 /**
  * @see module:keyring/keyring
  * @module keyring
@@ -11902,7 +11912,7 @@ exports.getPreferredSymAlgo = getPreferredSymAlgo;
 module.exports = require('./keyring.js');
 module.exports.localstore = require('./localstore.js');
 
-},{"./keyring.js":34,"./localstore.js":35}],34:[function(require,module,exports){
+},{"./keyring.js":35,"./localstore.js":36}],35:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -12124,7 +12134,7 @@ KeyArray.prototype.removeForId = function (keyId) {
   return null;
 };
 
-},{"../enums.js":30,"../key.js":32,"../util.js":61,"./localstore.js":35}],35:[function(require,module,exports){
+},{"../enums.js":31,"../key.js":33,"../util.js":62,"./localstore.js":36}],36:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -12230,7 +12240,7 @@ function storeKeys(storage, itemname, keys) {
   storage.setItem(itemname, JSON.stringify(armoredKeys));
 }
 
-},{"../config":4,"../key.js":32,"../util.js":61,"node-localstorage":false}],36:[function(require,module,exports){
+},{"../config":4,"../key.js":33,"../util.js":62,"node-localstorage":false}],37:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -12325,7 +12335,7 @@ Message.prototype.decrypt = function(privateKey) {
     // nothing to decrypt return unmodified message
     return this;
   }
-  var privateKeyPacket = privateKey.getPrivateKeyPacket(encryptionKeyIds);
+  var privateKeyPacket = privateKey.getKeyPacket(encryptionKeyIds);
   if (!privateKeyPacket.isDecrypted) throw new Error('Private key is not decrypted.');
   var pkESKeyPacketlist = this.packets.filterByTag(enums.packet.publicKeyEncryptedSessionKey);
   var pkESKeyPacket;
@@ -12455,22 +12465,22 @@ Message.prototype.sign = function(privateKeys) {
 
 /**
  * Verify message signatures
- * @param {Array<module:key~Key>} publicKeys public keys to verify signatures
+ * @param {Array<module:key~Key>} keys array of keys to verify signatures
  * @return {Array<({keyid: module:type/keyid, valid: Boolean})>} list of signer's keyid and validity of signature
  */
-Message.prototype.verify = function(publicKeys) {
+Message.prototype.verify = function(keys) {
   var result = [];
   var msg = this.unwrapCompressed();
   var literalDataList = msg.packets.filterByTag(enums.packet.literal);
   if (literalDataList.length !== 1) throw new Error('Can only verify message with one literal data packet.');
   var signatureList = msg.packets.filterByTag(enums.packet.signature);
-  publicKeys.forEach(function(pubKey) {
+  keys.forEach(function(key) {
     for (var i = 0; i < signatureList.length; i++) {
-      var publicKeyPacket = pubKey.getPublicKeyPacket([signatureList[i].issuerKeyId]);
-      if (publicKeyPacket) {
+      var keyPacket = key.getKeyPacket([signatureList[i].issuerKeyId]);
+      if (keyPacket) {
         var verifiedSig = {};
         verifiedSig.keyid = signatureList[i].issuerKeyId;
-        verifiedSig.valid = signatureList[i].verify(publicKeyPacket, literalDataList[0]);
+        verifiedSig.valid = signatureList[i].verify(keyPacket, literalDataList[0]);
         result.push(verifiedSig);
         break;
       }
@@ -12552,7 +12562,7 @@ exports.readArmored = readArmored;
 exports.fromText = fromText;
 exports.fromBinary = fromBinary;
 
-},{"./config":4,"./crypto":19,"./encoding/armor.js":28,"./enums.js":30,"./key.js":32,"./packet":40}],37:[function(require,module,exports){
+},{"./config":4,"./crypto":20,"./encoding/armor.js":29,"./enums.js":31,"./key.js":33,"./packet":41}],38:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -12832,7 +12842,7 @@ exports.signClearMessage = signClearMessage;
 exports.verifyClearSignedMessage = verifyClearSignedMessage;
 exports.generateKeyPair = generateKeyPair;
 
-},{"./cleartext.js":1,"./config":4,"./encoding/armor.js":28,"./enums.js":30,"./key.js":32,"./message.js":36,"./packet":40,"./worker/async_proxy.js":62}],38:[function(require,module,exports){
+},{"./cleartext.js":1,"./config":4,"./encoding/armor.js":29,"./enums.js":31,"./key.js":33,"./message.js":37,"./packet":41,"./worker/async_proxy.js":63}],39:[function(require,module,exports){
 /**
  * @requires enums
  * @module packet
@@ -12912,7 +12922,7 @@ function packetClassFromTagName(tag) {
   return tag.substr(0, 1).toUpperCase() + tag.substr(1);
 }
 
-},{"../enums.js":30,"./compressed.js":39,"./literal.js":41,"./marker.js":42,"./one_pass_signature.js":43,"./public_key.js":46,"./public_key_encrypted_session_key.js":47,"./public_subkey.js":48,"./secret_key.js":49,"./secret_subkey.js":50,"./signature.js":51,"./sym_encrypted_integrity_protected.js":52,"./sym_encrypted_session_key.js":53,"./symmetrically_encrypted.js":54,"./trust.js":55,"./user_attribute.js":56,"./userid.js":57}],39:[function(require,module,exports){
+},{"../enums.js":31,"./compressed.js":40,"./literal.js":42,"./marker.js":43,"./one_pass_signature.js":44,"./public_key.js":47,"./public_key_encrypted_session_key.js":48,"./public_subkey.js":49,"./secret_key.js":50,"./secret_subkey.js":51,"./signature.js":52,"./sym_encrypted_integrity_protected.js":53,"./sym_encrypted_session_key.js":54,"./symmetrically_encrypted.js":55,"./trust.js":56,"./user_attribute.js":57,"./userid.js":58}],40:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -13088,7 +13098,7 @@ Compressed.prototype.compress = function () {
   }
 };
 
-},{"../compression/jxg.js":2,"../encoding/base64.js":29,"../enums.js":30}],40:[function(require,module,exports){
+},{"../compression/jxg.js":2,"../encoding/base64.js":30,"../enums.js":31}],41:[function(require,module,exports){
 var enums = require('../enums.js');
 
 module.exports = {
@@ -13104,7 +13114,7 @@ var packets = require('./all_packets.js');
 for (var i in packets)
   module.exports[i] = packets[i];
 
-},{"../enums.js":30,"./all_packets.js":38,"./packetlist.js":45}],41:[function(require,module,exports){
+},{"../enums.js":31,"./all_packets.js":39,"./packetlist.js":46}],42:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -13256,7 +13266,7 @@ Literal.prototype.write = function () {
   return result;
 };
 
-},{"../enums.js":30,"../util.js":61}],42:[function(require,module,exports){
+},{"../enums.js":31,"../util.js":62}],43:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -13319,7 +13329,7 @@ Marker.prototype.read = function (bytes) {
   return false;
 };
 
-},{"../enums.js":30}],43:[function(require,module,exports){
+},{"../enums.js":31}],44:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -13425,7 +13435,7 @@ OnePassSignature.prototype.postCloneTypeFix = function() {
   this.signingKeyId = type_keyid.fromClone(this.signingKeyId);
 };
 
-},{"../enums.js":30,"../type/keyid.js":58}],44:[function(require,module,exports){
+},{"../enums.js":31,"../type/keyid.js":59}],45:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -13690,7 +13700,7 @@ module.exports = {
   }
 };
 
-},{"../enums.js":30,"../util.js":61}],45:[function(require,module,exports){
+},{"../enums.js":31,"../util.js":62}],46:[function(require,module,exports){
 /**
  * This class represents a list of openpgp packets.
  * Take care when iterating over it - the packets themselves
@@ -13887,7 +13897,7 @@ module.exports.fromStructuredClone = function(packetlistClone) {
   }
   return packetlist;
 };
-},{"../enums.js":30,"./all_packets.js":38,"./packet.js":44}],46:[function(require,module,exports){
+},{"../enums.js":31,"./all_packets.js":39,"./packet.js":45}],47:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -14113,7 +14123,7 @@ PublicKey.prototype.postCloneTypeFix = function() {
   }
 };
 
-},{"../crypto":19,"../enums.js":30,"../type/keyid.js":58,"../type/mpi.js":59,"../util.js":61}],47:[function(require,module,exports){
+},{"../crypto":20,"../enums.js":31,"../type/keyid.js":59,"../type/mpi.js":60,"../util.js":62}],48:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -14308,7 +14318,7 @@ PublicKeyEncryptedSessionKey.prototype.postCloneTypeFix = function() {
   }
 };
 
-},{"../crypto":19,"../enums.js":30,"../type/keyid.js":58,"../type/mpi.js":59,"../util.js":61}],48:[function(require,module,exports){
+},{"../crypto":20,"../enums.js":31,"../type/keyid.js":59,"../type/mpi.js":60,"../util.js":62}],49:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -14349,7 +14359,7 @@ function PublicSubkey() {
 PublicSubkey.prototype = new publicKey();
 PublicSubkey.prototype.constructor = PublicSubkey;
 
-},{"../enums.js":30,"./public_key.js":46}],49:[function(require,module,exports){
+},{"../enums.js":31,"./public_key.js":47}],50:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -14627,7 +14637,7 @@ SecretKey.prototype.clearPrivateMPIs = function () {
   this.isDecrypted = false;
 };
 
-},{"../crypto":19,"../enums.js":30,"../type/mpi.js":59,"../type/s2k.js":60,"../util.js":61,"./public_key.js":46}],50:[function(require,module,exports){
+},{"../crypto":20,"../enums.js":31,"../type/mpi.js":60,"../type/s2k.js":61,"../util.js":62,"./public_key.js":47}],51:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -14668,7 +14678,7 @@ function SecretSubkey() {
 SecretSubkey.prototype = new secretKey();
 SecretSubkey.prototype.constructor = SecretSubkey;
 
-},{"../enums.js":30,"./secret_key.js":49}],51:[function(require,module,exports){
+},{"../enums.js":31,"./secret_key.js":50}],52:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -15274,7 +15284,8 @@ Signature.prototype.calculateTrailer = function () {
 /**
  * verifys the signature packet. Note: not signature types are implemented
  * @param {String|Object} data data which on the signature applies
- * @param {module:packet/public_subkey|module:packet/public_key} key the public key to verify the signature
+ * @param {module:packet/public_subkey|module:packet/public_key|
+ *         module:packet/secret_subkey|module:packet/secret_key} key the public key to verify the signature
  * @return {boolean} True if message is verified, else false.
  */
 Signature.prototype.verify = function (key, data) {
@@ -15329,7 +15340,7 @@ Signature.prototype.postCloneTypeFix = function() {
   this.issuerKeyId = type_keyid.fromClone(this.issuerKeyId);
 };
 
-},{"../crypto":19,"../enums.js":30,"../type/keyid.js":58,"../type/mpi.js":59,"../util.js":61,"./packet.js":44}],52:[function(require,module,exports){
+},{"../crypto":20,"../enums.js":31,"../type/keyid.js":59,"../type/mpi.js":60,"../util.js":62,"./packet.js":45}],53:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -15457,7 +15468,7 @@ SymEncryptedIntegrityProtected.prototype.decrypt = function (sessionKeyAlgorithm
     this.packets.read(decrypted.substr(0, decrypted.length - 22));
 };
 
-},{"../crypto":19,"../enums.js":30,"../util.js":61}],53:[function(require,module,exports){
+},{"../crypto":20,"../enums.js":31,"../util.js":62}],54:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -15608,7 +15619,7 @@ SymEncryptedSessionKey.prototype.postCloneTypeFix = function() {
   this.s2k = type_s2k.fromClone(this.s2k);
 };
 
-},{"../crypto":19,"../enums.js":30,"../type/s2k.js":60}],54:[function(require,module,exports){
+},{"../crypto":20,"../enums.js":31,"../type/s2k.js":61}],55:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -15686,7 +15697,7 @@ SymmetricallyEncrypted.prototype.encrypt = function (algo, key) {
     crypto.getPrefixRandom(algo), algo, data, key, true);
 };
 
-},{"../crypto":19,"../enums.js":30}],55:[function(require,module,exports){
+},{"../crypto":20,"../enums.js":31}],56:[function(require,module,exports){
 /**
  * @requires enums
  * @module packet/trust
@@ -15712,7 +15723,7 @@ Trust.prototype.read = function (bytes) {
 
 };
 
-},{"../enums.js":30}],56:[function(require,module,exports){
+},{"../enums.js":31}],57:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -15807,7 +15818,7 @@ UserAttribute.prototype.equals = function(usrAttr) {
   });
 };
 
-},{"../enums.js":30,"../util.js":61,"./packet.js":44}],57:[function(require,module,exports){
+},{"../enums.js":31,"../util.js":62,"./packet.js":45}],58:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -15871,7 +15882,7 @@ Userid.prototype.write = function () {
   return util.encode_utf8(this.userid);
 };
 
-},{"../enums.js":30,"../util.js":61}],58:[function(require,module,exports){
+},{"../enums.js":31,"../util.js":62}],59:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -15946,7 +15957,7 @@ module.exports.fromClone = function (clone) {
   return keyid;
 };
 
-},{"../util.js":61}],59:[function(require,module,exports){
+},{"../util.js":62}],60:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -16059,7 +16070,7 @@ module.exports.fromClone = function (clone) {
   return mpi;
 };
 
-},{"../crypto/public_key/jsbn.js":24,"../util.js":61}],60:[function(require,module,exports){
+},{"../crypto/public_key/jsbn.js":25,"../util.js":62}],61:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -16250,7 +16261,7 @@ module.exports.fromClone = function (clone) {
   return s2k;
 };
 
-},{"../crypto":19,"../enums.js":30,"../util.js":61}],61:[function(require,module,exports){
+},{"../crypto":20,"../enums.js":31,"../util.js":62}],62:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -16561,7 +16572,7 @@ module.exports = {
   }
 };
 
-},{"./config":4}],62:[function(require,module,exports){
+},{"./config":4}],63:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -16860,7 +16871,7 @@ AsyncProxy.prototype.decryptKeyPacket = function(privateKey, keyIds, password, c
 
 module.exports = AsyncProxy;
 
-},{"../crypto":19,"../enums.js":30,"../key.js":32,"../packet":40,"../type/keyid.js":58}]},{},[31])
-(31)
+},{"../crypto":20,"../enums.js":31,"../key.js":33,"../packet":41,"../type/keyid.js":59}]},{},[32])
+(32)
 });
 ;
