@@ -120,7 +120,8 @@ function encryptAndSign(event){
   var privKey;
   var password = rootElement.find('#gCryptPasswordEncrypt').val();
   var recipients = getRecipients(form, event);
-  chrome.extension.sendRequest({method: "encryptAndSign", recipients: recipients, message: contents.msg, password: password}, function(response){
+  var from = form.find('[name="from"]').val();
+  chrome.extension.sendRequest({method: "encryptAndSign", recipients: recipients, from: from, message: contents.msg, password: password}, function(response){
     if(response && response.type && response.type == "error") {
       showAlert(response, form);
     }
@@ -133,8 +134,8 @@ function encrypt(event){
   form.find('.alert').hide();
   var contents = getContents(form, event);
   var recipients = getRecipients(form, event);
-
-  chrome.extension.sendRequest({method: "encrypt", recipients: recipients, message: contents.msg}, function(response){
+  var from = form.find('[name="from"]').val();
+  chrome.extension.sendRequest({method: "encrypt", recipients: recipients, from: from, message: contents.msg}, function(response){
     if(response && response.type && response.type == "error") {
       showAlert(response, form);
     }
@@ -273,7 +274,7 @@ function composeIntercept(ev) {
         }
       }
     });
-    chrome.extension.sendRequest({method: 'getOption', option: 'stopAutomaticDrafts'}, function(response){
+    chrome.extension.sendRequest({method: 'getOption', option: 'stopAutomaticDrafts', thirdParty: true}, function(response){
       if(response === true){
         stopAutomaticDrafts();
       }
@@ -293,7 +294,6 @@ function composeIntercept(ev) {
         encryptAndSign(event);
         return false;
       });
-
     }
   }
 
@@ -302,14 +302,14 @@ function composeIntercept(ev) {
   if (viewTitleBar && viewTitleBar.length > 0) {
     viewTitleBar.each(function(v) {
       if ($(this).find('#gCryptDecrypt').length === 0) {
-        $(this).prepend('<span id="gCryptDecrypt"><a class="btn" href="#" id="decrypt"><img src="'+chrome.extension.getURL("images/decryptIcon.png")+'" width=13 height=13/ >Decrypt</a></span>');
+        $(this).prepend('<span id="gCryptDecrypt"><a class="btn" action="decrypt" id="decrypt"><img src="'+chrome.extension.getURL("images/decryptIcon.png")+'" width=13 height=13 />Decrypt</a></span>');
         $(this).find('#decrypt').click(decrypt);
         $(this).append('<form class="form-inline"><input type="password" class="input-small" placeholder="password" id="gCryptPasswordDecrypt"></form>');
         $(this).find('form[class="form-inline"]').submit(function(event){
-          $(this).parent().find('a[class="btn"]').click();
+          $(this).parent().find('a[action="decrypt"]').click();
           return false;
         });
-        $(this).prepend('<span id="gCryptVerify"><a class="btn" href="#" id="verify">Verify Signature</a></span>');
+        $(this).prepend('<span id="gCryptVerify"><a class="btn" id="verify">Verify Signature</a></span>');
         $(this).find('#verify').click(verifySignature);
       }
     });

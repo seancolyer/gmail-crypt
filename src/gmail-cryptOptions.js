@@ -137,6 +137,7 @@ function onLoad(){
   //TODO openpgp.js needs to improve config support, this is a hack.
   config = new openpgp.config.localStorage();
   config.read();
+  gCryptUtil.migrateOldKeys(keyring);
   parsePrivateKeys();
   parsePublicKeys();
   loadOptions();

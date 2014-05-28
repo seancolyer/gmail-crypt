@@ -1,14 +1,12 @@
-/* This is a collection of utilities for gmail-crypt.
+/*
+ * This is a collection of utilities for mymail-crypt for Gmail.
  *
- * Copyright 2011 Sean Colyer, <sean @ colyer . name>
+ * Copyright 2011-2014 Sean Colyer, <sean @ colyer . name>
  * This program is licensed under the GNU General Public License Version 2.
  * See included "LICENSE" file for details.
  */
 
-
 var gCryptUtil = {
-    noArmoredText: 'No encrypted message detected',
-
     parseUser: function(user){
        try{
            var userName = user.substring(0,user.indexOf('<')-1);
@@ -25,15 +23,11 @@ var gCryptUtil = {
                 userEmail = user;
             }
            }
-           return {userName: userName, userEmail: userEmail};
+           return {userName: userName, userEmail: userEmail, error: null};
        }
        catch(e){
-           this.notify('No User Found');
-           return {userName: '', userEmail: ''};
+           return {userName: '', userEmail: '', error: 'No User Found'};
        }
-    },
-
-    notify: function(msg){
     },
 
     getOption: function (config, optionName, thirdParty) {
@@ -71,6 +65,25 @@ var gCryptUtil = {
         config.config[optionName] = value;
       }
       config.write();
-    }
+    },
 
+    migrateOldKeys: function(keyring) {
+      var keys;
+      //Note that below we are not removing the old keys, for backwards compatibility, might remove evenutally.
+      if (localStorage) {
+        if (localStorage.publickeys) {
+          keys = JSON.parse(localStorage.publickeys);
+          _.each(keys, function (key) {
+            keyring.publicKeys.importKey(key);
+          });
+        }
+        if (localStorage.privatekeys) {
+          keys = JSON.parse(localStorage.privatekeys);
+          _.each(keys, function (key) {
+            keyring.privateKeys.importKey(key);
+          });
+        }
+      }
+      keyring.store();
+    }
 };

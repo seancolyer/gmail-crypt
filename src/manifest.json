@@ -13,7 +13,7 @@
     "http://google.com/*"
     ],
 "background": {
-    "scripts":["lib/jquery-2.1.0.min.js", "lib/openpgp.js", "gmail-cryptUtil.js", "gmail-cryptBackground.js"]
+    "scripts":["lib/lodash-2.4.1.js", "lib/jquery-2.1.0.min.js", "lib/openpgp.js", "gmail-cryptUtil.js", "gmail-cryptBackground.js"]
     },
 "content_scripts": [{
     "matches":["https://mail.google.com/*","http://mail.google.com/*"],

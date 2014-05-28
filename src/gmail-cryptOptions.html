@@ -108,9 +108,15 @@
           </form>
           <a href="#"><h2 id="generateKeyPairTitle">generate a new key:</h2></a>
           <form id="generateKeyPairForm" class="well"><br/>
-            <input class="input-large" type="text" id="name" placeholder="your name"/><br/>
-            <input class="input-large" type="text" id="email" placeholder="your email"/><br/>
-            <input class="input-large" type="password" id="password" placeholder="password"/><br/>
+            <div>
+              <input class="input-large" type="text" id="name" placeholder="your name"/><br/>
+            </div>
+            <div>
+              <input class="input-large" type="text" id="email" placeholder="your email"/><br/>
+            </div>
+            <div>
+              <input class="input-large" type="password" id="password" placeholder="password"/><br/>
+            </div>
             <label>Key bit-length</label>
             <select id="numBits">
               <option value="1024">1024</option>
@@ -215,6 +221,7 @@
 
   <script src='gmail-cryptUtil.js'></script>
   <script src='lib/jquery-2.1.0.min.js'></script>
+  <script src='lib/lodash-2.4.1.js'></script>
   <script src='lib/bootstrap.min.js'></script>
   <script src='lib/openpgp.js'></script>
   <script src='gmail-cryptOptions.js'></script>

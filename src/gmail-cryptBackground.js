@@ -27,16 +27,6 @@ var gCryptAlerts = {
 };
 
 
-function getOption(optionName) {
-  var gCryptSettings = config.config.thirdParty;
-  if(!gCryptSettings || !gCryptSettings.mymail-crypt){
-    return;
-  }
-  else{
-    return gCryptSettings.mymail-crypt[optionName];
-  }
-}
-
 function getKeys(keyIds, keyringSet) {
   var keys = [];
   keyIds.forEach(function(keyId){
@@ -56,7 +46,7 @@ function prepareAndValidatePrivateKey(password) {
   return gCryptAlerts.gCryptAlertEncryptNoPrivateKeys;
 }
 
-function prepareAndValidateKeysForRecipients(recipients) {
+function prepareAndValidateKeysForRecipients(recipients, from) {
   if(recipients.email.length === 0){
     return gCryptAlert.gCryptAlertEncryptNoUser;
   }
@@ -73,21 +63,19 @@ function prepareAndValidateKeysForRecipients(recipients) {
     return gCryptAlerts.gCryptAlertEncryptNoUser;
   }
 
-  var includeMyKey = getOption('includeMyself');
+  var includeMyKey = gCryptUtil.getOption(config, 'includeMyself', true);
   if (includeMyKey) {
-    var myKey = keyring.publicKeys.getFoId(request.myKeyId)[0];
-    keys.push(myKey);
+    keys = _.compact(keys.concat(keyring.publicKeys.getForAddress(from)));
   }
   return keys;
 }
 
-function encryptAndSign(recipients, message, password) {
-  debugger;
+function encryptAndSign(recipients, from, message, password) {
   var privKey = prepareAndValidatePrivateKey(password);
   if(privKey && privKey.type && privKey.type == "error") {
     return privKey;
   }
-  var publicKeys = prepareAndValidateKeysForRecipients(recipients);
+  var publicKeys = prepareAndValidateKeysForRecipients(recipients, from);
   if(publicKeys && publicKeys.type && publicKeys.type == "error") {
     return publicKeys;
   }
@@ -95,8 +83,8 @@ function encryptAndSign(recipients, message, password) {
   return cipherText;
 }
 
-function encrypt(recipients, message) {
-  var publicKeys = prepareAndValidateKeysForRecipients(recipients);
+function encrypt(recipients, from, message) {
+  var publicKeys = prepareAndValidateKeysForRecipients(recipients, from);
   if(publicKeys && publicKeys.type && publicKeys.type == "error") {
     return publicKeys;
   }
@@ -183,12 +171,15 @@ function verify(senderEmail, msg) {
 
 chrome.extension.onRequest.addListener(function(request,sender,sendResponse){
     var result;
+    //config can change at anytime, reload on request
+    config.read();
+    openpgp.config = config.config;
     if (request.method == "encryptAndSign") {
-      result = encryptAndSign(request.recipients, request.message, request.password);
+      result = encryptAndSign(request.recipients, request.from, request.message, request.password);
       sendResponse(result);
     }
     else if (request.method == "encrypt") {
-      result = encrypt(request.recipients, request.message);
+      result = encrypt(request.recipients, request.from, request.message);
       sendResponse(result);
     }
     else if (request.method == "sign") {
@@ -204,18 +195,19 @@ chrome.extension.onRequest.addListener(function(request,sender,sendResponse){
       sendResponse(result);
     }
     else if(request.method == "getOption") {
-      result = getOption(request.option);
+      result = gCryptUtil.getOption(config, request.option, request.thirdParty);
       sendResponse(result);
     }
     else{
+      throw new Error("Unsupported Operation");
     }
 });
 
-function onLoad(){
+document.onload = function() {
   keyring = new openpgp.Keyring();
+  gCryptUtil.migrateOldKeys(keyring);
   //TODO openpgp.js needs to improve config support, this is a hack.
   config = new openpgp.config.localStorage();
   config.read();
-}
-
-document.onload = onLoad();
+  openpgp.config = config.config;
+}();

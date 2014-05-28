@@ -7,3 +7,7 @@
 .modal {
   width: 580px;
 }
+
+#generateKeyPairForm .input-large {
+  height: 30px;
+}
