@@ -1501,7 +1501,7 @@ module.exports = {
   integrity_protect: true,
   rsa_blinding: true,
 
-  show_version: true,
+  show_version: false,
   show_comment: true,
   versionstring: "OpenPGP.js v0.6.1-dev",
   commentstring: "http://openpgpjs.org",
