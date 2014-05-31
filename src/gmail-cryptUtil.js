@@ -76,12 +76,16 @@ var gCryptUtil = {
           _.each(keys, function (key) {
             keyring.publicKeys.importKey(key);
           });
+          localStorage.publickeysBackup = localStorage.publickeys;
+          localStorage.removeItem("publickeys");
         }
         if (localStorage.privatekeys) {
           keys = JSON.parse(localStorage.privatekeys);
           _.each(keys, function (key) {
             keyring.privateKeys.importKey(key);
           });
+          localStorage.privatekeysBackup = localStorage.privatekeys;
+          localStorage.removeItem("privatekeys");
         }
       }
       keyring.store();

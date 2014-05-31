@@ -27,10 +27,9 @@ function generateKeyPair(){
 function insertPrivateKey(){
   $('.alert').hide();
   var privKey = $('#newPrivateKey').val();
-  var privKeyPassword = $('#newPrivateKeyPassword').val();
-  try{
+  try {
     var importResult = keyring.privateKeys.importKey(privKey);
-    if(importResult == null){
+    if (importResult === null) {
       keyring.store();
       parsePrivateKeys();
       return true;
@@ -87,7 +86,7 @@ function parseKeys(keys, domPrefix){
     $('#' + domPrefix + k).modal({backdrop: true, show: false});
   }
   $('#' + domPrefix + 'KeyTable .removeLink').click(function(e){
-    keys.splice(e.currentTarget.id);
+    keys.splice(e.currentTarget.id, 1);
     keyring.store();
     parseKeys(keys, domPrefix);
   });
