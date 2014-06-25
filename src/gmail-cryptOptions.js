@@ -135,7 +135,18 @@ function onLoad(){
   keyring = new openpgp.Keyring();
   //TODO openpgp.js needs to improve config support, this is a hack.
   config = new openpgp.config.localStorage();
-  config.read();
+  try {
+    config.read();
+  }
+  catch (e) {
+    //no-op, makes more sense to handle this in finally since read can give null config
+  }
+  finally {
+    if(_.isEmpty(config.config)) {
+      config.config = openpgp.config;
+      config.write();
+    }
+  }
   gCryptUtil.migrateOldKeys(keyring);
   parsePrivateKeys();
   parsePublicKeys();
