@@ -72,11 +72,11 @@ function prepareAndValidateKeysForRecipients(recipients, from) {
 
 function encryptAndSign(recipients, from, message, password) {
   var privKey = prepareAndValidatePrivateKey(password);
-  if(privKey && privKey.type && privKey.type == "error") {
+  if(privKey.type && privKey.type == "error") {
     return privKey;
   }
   var publicKeys = prepareAndValidateKeysForRecipients(recipients, from);
-  if(publicKeys && publicKeys.type && publicKeys.type == "error") {
+  if(publicKeys.type && publicKeys.type == "error") {
     return publicKeys;
   }
   var cipherText = openpgp.signAndEncryptMessage(publicKeys, privKey, message);

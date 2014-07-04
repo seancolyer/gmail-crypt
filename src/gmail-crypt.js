@@ -113,44 +113,15 @@ function getRecipients(form, event){
   return recipients;
 }
 
-function encryptAndSign(event){
-  var form = rootElement.find('form');
-  form.find('.alert').hide();
-  var contents = getContents(form, event);
-  var privKey;
-  var password = rootElement.find('#gCryptPasswordEncrypt').val();
-  var recipients = getRecipients(form, event);
-  var from = form.find('[name="from"]').val();
-  chrome.extension.sendRequest({method: "encryptAndSign", recipients: recipients, from: from, message: contents.msg, password: password}, function(response){
-    if(response && response.type && response.type == "error") {
-      showAlert(response, form);
-    }
-    writeContents(contents, response);
-  });
-}
-
-function encrypt(event){
-  var form = rootElement.find('form');
-  form.find('.alert').hide();
-  var contents = getContents(form, event);
-  var recipients = getRecipients(form, event);
-  var from = form.find('[name="from"]').val();
-  chrome.extension.sendRequest({method: "encrypt", recipients: recipients, from: from, message: contents.msg}, function(response){
-    if(response && response.type && response.type == "error") {
-      showAlert(response, form);
-    }
-    writeContents(contents, response);
-  });
-}
-
-function sign(event){
+function sendAndHandleBackgroundCall(event){
   var form = rootElement.find('form');
   form.find('.alert').hide();
   var contents = getContents(form, event);
   var password = rootElement.find('#gCryptPasswordEncrypt').val();
-
-  chrome.extension.sendRequest({method: "sign", message: contents.msg, password: password}, function(response){
-    if(response && response.type && response.type == "error") {
+  var recipients = getRecipients(form, event);
+  var from = form.find('[name="from"]').val();
+  chrome.extension.sendRequest({method: event.data.action, recipients: recipients, from: from, message: contents.msg, password: password}, function(response){
+    if(response.type && response.type == "error") {
       showAlert(response, form);
     }
     writeContents(contents, response);
@@ -161,7 +132,7 @@ function getMessage(objectContext){
   var msg;
   //we need to use regex here because gmail will automatically form \n into <br> or <wbr>, strip these out
   //I'm not entirely happy with these replace statements, perhaps there can be a different approach
-  element = $(event.currentTarget).closest('div[class="gs"]').find('[class*="ii gt"] div');
+  var element = $(event.currentTarget).closest('div[class="gs"]').find('[class*="ii gt"] div');
   msg = element.html().replace(/\n/g,"");
   msg = msg.replace(/(<br><\/div>)/g,'\n'); //we need to ensure that extra spaces aren't added where gmail puts a <div><br></div>
   msg = msg.replace(/(<\/div>)/g,'\n');
@@ -264,11 +235,11 @@ function composeIntercept(ev) {
             composeMenu.append(encryptionFormOptions + encryptionForm);
             composeMenu.css("height","80px");
           }
-          composeMenu.find('#encryptAndSign').click(encryptAndSign);
-          composeMenu.find('#encrypt').click(encrypt);
-          composeMenu.find('#sign').click(sign);
-          composeMenu.find('form[class="form-inline"]').submit(function(event){
-            encryptAndSign(event);
+          composeMenu.find('#encryptAndSign').click({action: "encryptAndSign"}, sendAndHandleBackgroundCall);
+          composeMenu.find('#encrypt').click({action: "encrypt"}, sendAndHandleBackgroundCall);
+          composeMenu.find('#sign').click({action: "sign"}, sendAndHandleBackgroundCall);
+          composeMenu.find('form[class="form-inline"]').submit({action: "encryptAndSign"}, function(event){
+            sendAndHandleBackgroundCall(event);
             return false;
           });
         }
@@ -280,24 +251,7 @@ function composeIntercept(ev) {
       }
     });
   }
-  rootElement = $('#canvas_frame').length > 0 ? $('#canvas_frame').contents() : $(document);
-  var form = rootElement.find('form');
-  var menubar = form.find('td[class="fA"]');
-  if(menubar && menubar.length>0){
-    if(menubar.find('#gCryptEncrypt').length === 0){
-      menubar.append('<span id="gCryptEncrypt" class="btn-group"><a class="btn" href="#" id="encryptAndSign1"><img src="'+chrome.extension.getURL("images/encryptIcon.png")+'" width=13 height=13/> Encrypt</a><a class="btn dropdown-toggle" data-toggle="dropdown" href="#"><span class="caret"></span></a><ul class="dropdown-menu"><li id="encryptAndSign2"><a href="#">Encrypt (sign)</a></li><li id="encrypt"><a href="#">Encrypt (don\'t sign)</a></li><li id="sign"><a href="#">Sign only</a></li></ul></span><form class="form-inline"><input type="password" class="input-small" placeholder="password" id="gCryptPasswordEncrypt"></form>');
-      menubar.find('#encryptAndSign1').click(encryptAndSign);
-      menubar.find('#encryptAndSign2').click(encryptAndSign);
-      menubar.find('#encrypt').click(encrypt);
-      menubar.find('#sign').click(sign);
-      menubar.find('form[class="form-inline"]').submit(function(event){
-        encryptAndSign(event);
-        return false;
-      });
-    }
-  }
 
-  //Why is this not firing for all cases? It seems that if a page has been previously loaded it uses some sort of caching and won't fire the event
   var viewTitleBar = rootElement.find('td[class="gH acX"]');
   if (viewTitleBar && viewTitleBar.length > 0) {
     viewTitleBar.each(function(v) {
