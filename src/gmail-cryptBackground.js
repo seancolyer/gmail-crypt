@@ -12,10 +12,12 @@ var keyring,
 var gCryptAlerts = {
   gCryptAlertDecryptNoMessage : {id: 'gCryptAlertDecryptNoMessage', type: 'error', text: 'No OpenPGP message was found.',
     html: '<div class="alert alert-error" id="gCryptAlertDecryptNoMessage">No OpenPGP message was found.</div>' },
+  gCryptAlertDecryptNoCleartextMessage : {id: 'gCryptAlertDecryptNoCleartextMessage', type: 'error', text: 'No signed, cleartext OpenPGP message was found. Was this message also encrypted?',
+    html: '<div class="alert alert-error" id="gCryptAlertDecryptNoCleartextMessage">No signed, cleartext OpenPGP message was found. Was this message also encrypted?</div>' },
   gCryptUnableVerifySignature: {id: 'gCryptUnableVerifySignature', type: '', text: 'Mymail-Crypt For Gmail was unable to verify this message.',
     html: '<div class="alert" id="gCryptUnableVerifySignature">Mymail-Crypt For Gmail was unable to verify this message.</div>' },
   gCryptAbleVerifySignature: {id: 'gCryptAbleVerifySignature', type: 'success', text: 'Mymail-Crypt For Gmail was able to verify this message.',
-    html: '<div class="alert alert-success" id="gCryptUnableVerifySignature">Mymail-Crypt For Gmail was able to verify this message.</div>'},
+    html: '<div class="alert alert-success" id="gCryptAbleVerifySignature">Mymail-Crypt For Gmail was able to verify this message.</div>'},
   gCryptAlertPassword: {id: 'gCryptAlertPassword', type: 'error', text: 'Mymail-Crypt For Gmail was unable to read your key. Is your password correct?',
     html: '<div class="alert alert-error" id="gCryptAlertPassword">Mymail-Crypt For Gmail was unable to read your key. Is your password correct?</div>'},
   gCryptAlertDecrypt: {id: 'gCryptAlertDecrypt', type: 'error', text: 'Mymail-Crypt for Gmail was unable to decrypt this message.',
@@ -146,6 +148,7 @@ function decrypt(senderEmail, msg, password) {
 
     }
   }
+  status.push(gCryptAlerts.gCryptAlertDecrypt);
   return decryptResult(false, status);
 }
 
@@ -155,7 +158,7 @@ function verify(senderEmail, msg) {
     msg = openpgp.cleartext.readArmored(msg);
   }
   catch (e) {
-    status.push(gCryptAlerts.gCryptAlertDecryptNoMessage);
+    status.push(gCryptAlerts.gCryptAlertDecryptNoCleartextMessage);
     return decryptResult(false, status);
   }
   var publicKeys = keyring.publicKeys.getForAddress(senderEmail);
@@ -165,6 +168,7 @@ function verify(senderEmail, msg) {
     return decryptResult(true, status, result);
   }
   catch (e) {
+    status.push(gCryptAlerts.gCryptUnableVerifySignature);
     return decryptResult(false, status);
   }
 }

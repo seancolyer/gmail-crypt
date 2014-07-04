@@ -88,23 +88,11 @@ function writeContents(contents, message){
 function getRecipients(form, event){
   var recipients = {};
   recipients.email = [];
-  if (useComposeSubWindows) {
-    //for new in window compose gmail window
-    var emailsParent = $(event.currentTarget).parents().find('[email]').last().parent().parent();
-    if (emailsParent && emailsParent.length > 0) {
-      emailsParent.find('[email]').each(function() {
-        recipients.email.push($(this).attr("email"));
-      });
-    }
-  }
-  else {
-    //for old style
-    var to = form.find('textarea[name="to"]').val().split(',').concat(form.find('textarea[name="cc"]').val().split(','));
-    for(var recipient in to){
-      if(to[recipient].length > 2) {
-        recipients.email.push(gCryptUtil.parseUser(to[recipient]).userEmail);
-      }
-    }
+  var emailsParent = $(event.currentTarget).parents().find('[email]').last().parent().parent();
+  if (emailsParent && emailsParent.length > 0) {
+    emailsParent.find('[email]').each(function() {
+      recipients.email.push($(this).attr("email"));
+    });
   }
   return recipients;
 }
@@ -116,7 +104,8 @@ function sendAndHandleBackgroundCall(event){
   var password = rootElement.find('#gCryptPasswordEncrypt').val();
   var recipients = getRecipients(form, event);
   var from = form.find('[name="from"]').val();
-  chrome.extension.sendRequest({method: event.data.action, recipients: recipients, from: from, message: contents.msg, password: password}, function(response){
+  sendExtensionRequestPromise({method: event.data.action, recipients: recipients, from: from, message: contents.msg, password: password})
+  .then(function(response) {
     if(response.type && response.type == "error") {
       showAlert(response, form);
     }
@@ -139,32 +128,15 @@ function getMessage(objectContext){
   return [element, msg];
 }
 
-function decrypt(event){
+function sendAndHandleDecryptAndVerify(event){
+  rootElement.find('.alert').hide();
   var password = $(this).parent().parent().find('form[class="form-inline"] input[type="password"]').val();
-  rootElement.find('.alert').hide();
   var objectContext = this;
   var setup = getMessage(objectContext);
   var element = setup[0];
   var msg = setup[1];
   var senderEmail = $(objectContext).parents('div[class="gE iv gt"]').find('span [email]').attr('email');
-  chrome.extension.sendRequest({method: "decrypt", senderEmail:senderEmail, msg: msg, password: password}, function(response){
-    $.each(response.status, function(key, status) {
-      $(objectContext).parents('div[class="gE iv gt"]').append(status.html);
-    });
-    if (response.decrypted) {
-      element.html(response.result.text.replace(/\n/g,'<br>'));
-    }
-  });
-}
-
-function verifySignature(){
-  rootElement.find('.alert').hide();
-  var objectContext = this;
-  var setup = getMessage(objectContext);
-  var element = setup[0];
-  var msg = setup[1];
-  var senderEmail = $(objectContext).parents('div[class="gE iv gt"]').find('span [email]').attr('email');
-  chrome.extension.sendRequest({method: "verify", senderEmail:senderEmail, msg: msg}, function(response){
+  chrome.extension.sendRequest({method: event.data.action, senderEmail:senderEmail, msg: msg, password: password}, function(response){
     $.each(response.status, function(key, status) {
       $(objectContext).parents('div[class="gE iv gt"]').append(status.html);
     });
@@ -208,40 +180,44 @@ function showModalAlert(message) {
   $('#gCryptModal').modal('show');
 }
 
-var useComposeSubWindows = false;
+function sendExtensionRequestPromise(request) {
+  var deferred = $.Deferred();
+  chrome.extension.sendRequest(request, function(response){
+    deferred.resolve(response);
+  });
+  return deferred.promise();
+}
+
 function composeIntercept(ev) {
   var composeBoxes = $('.n1tfz');
   if (composeBoxes && composeBoxes.length > 0) {
     composeBoxes.each(function(){
       var composeMenu = $(this).parent().parent().parent();
       if (composeMenu && composeMenu.length> 0 && composeMenu.find('#gCryptEncrypt').length === 0) {
-        useComposeSubWindows = true;
         var maxSizeCheck = composeMenu.parent().parent().parent().parent().parent().find('[style*="max-height"]');
-        //We have to check again because of rapidly changing elements
-        if(composeMenu.find('#gCryptEncrypt').length === 0) {
-          //The below logic is for inserting the form into the windows, different behavior for in window compose and popout compose.
-          var encryptionFormOptions = '<span id="gCryptEncrypt" class="btn-group" style="float:right"><a class="btn" href="#" id="encryptAndSign"><img src="'+chrome.extension.getURL("images/encryptIcon.png")+'" width=13 height=13/> Encrypt and Sign</a><a class="btn" href="#" id="encrypt">Encrypt</a><a class="btn" href="#" id="sign">Sign</a></span>';
+        //The below logic is for inserting the form into the windows, different behavior for in window compose and popout compose.
+        var encryptionFormOptions = '<span id="gCryptEncrypt" class="btn-group" style="float:right"><a class="btn" href="#" id="encryptAndSign"><img src="'+chrome.extension.getURL("images/encryptIcon.png")+'" width=13 height=13/> Encrypt and Sign</a><a class="btn" href="#" id="encrypt">Encrypt</a><a class="btn" href="#" id="sign">Sign</a></span>';
 
-          var encryptionForm = '<form class="form-inline" style="float:right"><input type="password" class="input-small" placeholder="password" id="gCryptPasswordEncrypt" style="font-size:12px;margin-top:5px;"></form>';
+        var encryptionForm = '<form class="form-inline" style="float:right"><input type="password" class="input-small" placeholder="password" id="gCryptPasswordEncrypt" style="font-size:12px;margin-top:5px;"></form>';
 
-          if (maxSizeCheck && maxSizeCheck.length > 0 && maxSizeCheck.css('max-height') === maxSizeCheck.css('height')) {
-            composeMenu.find('.n1tfz :nth-child(6)').after('<td class="gU" style="min-width: 360px;">' + encryptionFormOptions + '</td><td class="gU">' + encryptionForm + '</td>');
-          }
-          else {
-            composeMenu.append(encryptionFormOptions + encryptionForm);
-            composeMenu.css("height","80px");
-          }
-          composeMenu.find('#encryptAndSign').click({action: "encryptAndSign"}, sendAndHandleBackgroundCall);
-          composeMenu.find('#encrypt').click({action: "encrypt"}, sendAndHandleBackgroundCall);
-          composeMenu.find('#sign').click({action: "sign"}, sendAndHandleBackgroundCall);
-          composeMenu.find('form[class="form-inline"]').submit({action: "encryptAndSign"}, function(event){
-            sendAndHandleBackgroundCall(event);
-            return false;
-          });
+        if (maxSizeCheck && maxSizeCheck.length > 0 && maxSizeCheck.css('max-height') === maxSizeCheck.css('height')) {
+          composeMenu.find('.n1tfz :nth-child(6)').after('<td class="gU" style="min-width: 360px;">' + encryptionFormOptions + '</td><td class="gU">' + encryptionForm + '</td>');
         }
+        else {
+          composeMenu.append(encryptionFormOptions + encryptionForm);
+          composeMenu.css("height","80px");
+        }
+        composeMenu.find('#encryptAndSign').click({action: "encryptAndSign"}, sendAndHandleBackgroundCall);
+        composeMenu.find('#encrypt').click({action: "encrypt"}, sendAndHandleBackgroundCall);
+        composeMenu.find('#sign').click({action: "sign"}, sendAndHandleBackgroundCall);
+        composeMenu.find('form[class="form-inline"]').submit({action: "encryptAndSign"}, function(event){
+          sendAndHandleBackgroundCall(event);
+          return false;
+        });
       }
     });
-    chrome.extension.sendRequest({method: 'getOption', option: 'stopAutomaticDrafts', thirdParty: true}, function(response){
+    sendExtensionRequestPromise({method: 'getOption', option: 'stopAutomaticDrafts', thirdParty: true})
+    .then(function(response) {
       if(response === true){
         stopAutomaticDrafts();
       }
@@ -253,14 +229,14 @@ function composeIntercept(ev) {
     viewTitleBar.each(function(v) {
       if ($(this).find('#gCryptDecrypt').length === 0) {
         $(this).prepend('<span id="gCryptDecrypt"><a class="btn" action="decrypt" id="decrypt"><img src="'+chrome.extension.getURL("images/decryptIcon.png")+'" width=13 height=13 />Decrypt</a></span>');
-        $(this).find('#decrypt').click(decrypt);
+        $(this).find('#decrypt').click({action: "decrypt"}, sendAndHandleDecryptAndVerify);
         $(this).append('<form class="form-inline"><input type="password" class="input-small" placeholder="password" id="gCryptPasswordDecrypt"></form>');
         $(this).find('form[class="form-inline"]').submit(function(event){
           $(this).parent().find('a[action="decrypt"]').click();
           return false;
         });
         $(this).prepend('<span id="gCryptVerify"><a class="btn" id="verify">Verify Signature</a></span>');
-        $(this).find('#verify').click(verifySignature);
+        $(this).find('#verify').click({action: "verify"}, sendAndHandleDecryptAndVerify);
       }
     });
   }
