@@ -7,10 +7,6 @@
 
 var rootElement = $(document);
 
-function showMessages(str){
-  console.log(str);
-}
-
 //This clear and save is specific to the embedded reply composes
 function clearAndSaveReply(event){
   rootElement.find('[class*="gA gt"] [g_editable]').html('');
