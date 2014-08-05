@@ -46,7 +46,7 @@ function getContents(form, event){
   //g_editable is intended to work with Gmail's new broken out window approach.
   //we search based on event because it works well in case multiple compose windows are open
   var msg;
-  var g_editable = $(event.currentTarget).parents().find('[g_editable]').first();
+  var g_editable = $(event.currentTarget).parents('.I5').find('[g_editable]').first();
   if (g_editable && g_editable.length > 0 && g_editable.html()) {
     msg = g_editable.html().replace(/(<div>)/g,'\n');
     msg = msg.replace(/(<\/div>)/g,'');
@@ -88,7 +88,7 @@ function writeContents(contents, message){
 function getRecipients(form, event){
   var recipients = {};
   recipients.email = [];
-  var emailsParent = $(event.currentTarget).parents().find('[email]').last().parent().parent();
+  var emailsParent = $(event.currentTarget).parents('.I5').find('[email]').last().parent().parent();
   if (emailsParent && emailsParent.length > 0) {
     emailsParent.find('[email]').each(function() {
       recipients.email.push($(this).attr("email"));
@@ -98,10 +98,10 @@ function getRecipients(form, event){
 }
 
 function sendAndHandleBackgroundCall(event){
-  var form = rootElement.find('form');
+  var form = $(event.currentTarget).parents('.I5').find('form');
   form.find('.alert').hide();
   var contents = getContents(form, event);
-  var password = rootElement.find('#gCryptPasswordEncrypt').val();
+  var password = form.find('#gCryptPasswordEncrypt').val();
   var recipients = getRecipients(form, event);
   var from = form.find('[name="from"]').val();
   sendExtensionRequestPromise({method: event.data.action, recipients: recipients, from: from, message: contents.msg, password: password})

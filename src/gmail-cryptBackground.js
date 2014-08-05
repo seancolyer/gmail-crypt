@@ -37,35 +37,34 @@ function getKeys(keyIds, keyringSet) {
   return keys;
 }
 
-function prepareAndValidatePrivateKey(password) {
-  var privKeys = keyring.privateKeys;
-  for (var p = 0; p < privKeys.keys.length; p++) {
-    var privKey = privKeys.keys[p];
-    if (privKey.decrypt() || privKey.decrypt(password)) {
-      return privKey;
-    }
+function prepareAndValidatePrivateKey(password, from) {
+  var privateKeys = keyring.privateKeys.getForAddress(from);
+  if (_.isEmpty(privateKeys)) {
+    return gCryptAlerts.gCryptAlertEncryptNoPrivateKeys;
   }
-  return gCryptAlerts.gCryptAlertEncryptNoPrivateKeys;
+
+  var privateKey = _(privateKeys).find(function(key) {
+    return (key.decrypt() || key.decrypt(password));
+  });
+
+  return privateKey || gCryptAlerts.gCryptAlertPassword;
 }
 
 function prepareAndValidateKeysForRecipients(recipients, from) {
-  if(recipients.email.length === 0){
-    return gCryptAlert.gCryptAlertEncryptNoUser;
-  }
-
-  var emails = recipients.email;
   var keys = [];
-  for(var email in emails){
-    if(emails[email].length > 0){
-      keys.push(keyring.publicKeys.getForAddress(emails[email])[0]);
-    }
-  }
+  var includeMyKey = gCryptUtil.getOption(config, 'includeMyself', true);
 
-  if(keys.length === 0){
+  _(recipients.email).each(function(email) {
+    var publicKeyResult = keyring.publicKeys.getForAddress(email);
+    if (!_.isEmpty(publicKeyResult)) {
+      keys.push(publicKeyResult[0]);
+    }
+  });
+
+  if (_.isEmpty(keys)){
     return gCryptAlerts.gCryptAlertEncryptNoUser;
   }
 
-  var includeMyKey = gCryptUtil.getOption(config, 'includeMyself', true);
   if (includeMyKey) {
     keys = _.compact(keys.concat(keyring.publicKeys.getForAddress(from)));
   }
@@ -73,7 +72,7 @@ function prepareAndValidateKeysForRecipients(recipients, from) {
 }
 
 function encryptAndSign(recipients, from, message, password) {
-  var privKey = prepareAndValidatePrivateKey(password);
+  var privKey = prepareAndValidatePrivateKey(password, from);
   if(privKey.type && privKey.type == "error") {
     return privKey;
   }
@@ -94,8 +93,8 @@ function encrypt(recipients, from, message) {
   return cipherText;
 }
 
-function sign(message, password) {
-  var privKey = prepareAndValidatePrivateKey(password);
+function sign(message, password, from) {
+  var privKey = prepareAndValidatePrivateKey(password, from);
   if(privKey && privKey.type && privKey.type == "error") {
     return privKey;
   }
@@ -178,6 +177,10 @@ chrome.extension.onRequest.addListener(function(request,sender,sendResponse){
     //config can change at anytime, reload on request
     config.read();
     openpgp.config = config.config;
+    // keys can be changed in options. This prevents force page reloading
+    keyring.publicKeys.keys = keyring.storeHandler.loadPublic();
+    keyring.privateKeys.keys = keyring.storeHandler.loadPrivate();
+
     if (request.method == "encryptAndSign") {
       result = encryptAndSign(request.recipients, request.from, request.message, request.password);
       sendResponse(result);
@@ -187,7 +190,7 @@ chrome.extension.onRequest.addListener(function(request,sender,sendResponse){
       sendResponse(result);
     }
     else if (request.method == "sign") {
-      result = sign(request.message, request.password);
+      result = sign(request.message, request.password, request.from);
       sendResponse(result);
     }
     else if (request.method == "decrypt") {
