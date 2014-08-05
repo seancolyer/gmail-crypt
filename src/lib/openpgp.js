@@ -92,18 +92,25 @@ CleartextMessage.prototype.verify = function(keys) {
   var literalDataPacket = new packet.Literal();
   // we assume that cleartext signature is generated based on UTF8 cleartext
   literalDataPacket.setText(this.text);
-  keys.forEach(function(key) {
-    for (var i = 0; i < signatureList.length; i++) {
-      var keyPacket = key.getKeyPacket([signatureList[i].issuerKeyId]);
+  for (var i = 0; i < signatureList.length; i++) {
+    var keyPacket = null;
+    for (var j = 0; j < keys.length; j++) {
+      keyPacket = keys[j].getKeyPacket([signatureList[i].issuerKeyId]);
       if (keyPacket) {
-        var verifiedSig = {};
-        verifiedSig.keyid = signatureList[i].issuerKeyId;
-        verifiedSig.valid = signatureList[i].verify(keyPacket, literalDataPacket);
-        result.push(verifiedSig);
         break;
       }
     }
-  });
+
+    var verifiedSig = {};
+    if (keyPacket) {
+      verifiedSig.keyid = signatureList[i].issuerKeyId;
+      verifiedSig.valid = signatureList[i].verify(keyPacket, literalDataPacket);
+    } else {
+      verifiedSig.keyid = signatureList[i].issuerKeyId;
+      verifiedSig.valid = null;
+    }
+    result.push(verifiedSig);
+  }
   return result;
 };
 
@@ -1503,7 +1510,7 @@ module.exports = {
 
   show_version: false,
   show_comment: true,
-  versionstring: "OpenPGP.js v0.6.1-dev",
+  versionstring: "OpenPGP.js v0.7.2",
   commentstring: "http://openpgpjs.org",
 
   keyserver: "keyserver.linux.it", // "pgp.mit.edu:11371"
@@ -1540,7 +1547,8 @@ function LocalStorage() {
  * if config is null the default config will be used
  */
 LocalStorage.prototype.read = function () {
-  var cf = JSON.parse(window.localStorage.getItem("config"));
+  var raw = window.localStorage.getItem("config");
+  var cf = (raw === null ? null : JSON.parse(raw));
   if (cf === null) {
     this.config = this.default_config;
     this.write();
@@ -10012,7 +10020,7 @@ var base64 = require('./base64.js'),
  *         5 = PRIVATE KEY BLOCK
  */
 function getType(text) {
-  var reHeader = /^-----BEGIN PGP (MESSAGE, PART \d+\/\d+|MESSAGE, PART \d+|SIGNED MESSAGE|MESSAGE|PUBLIC KEY BLOCK|PRIVATE KEY BLOCK)-----$\n/m;
+  var reHeader = /^-----BEGIN PGP (MESSAGE, PART \d+\/\d+|MESSAGE, PART \d+|SIGNED MESSAGE|MESSAGE|PUBLIC KEY BLOCK|PRIVATE KEY BLOCK|SIGNATURE)-----$\n/m;
 
   var header = text.match(reHeader);
 
@@ -11796,8 +11804,9 @@ function generate(options) {
   if (options.keyType !== enums.publicKey.rsa_encrypt_sign) {
     throw new Error('Only RSA Encrypt or Sign supported');
   }
+  // Key without passphrase is unlocked by definition
   if (!options.passphrase) {
-    throw new Error('Parameter options.passphrase required');
+    options.unlocked = true;
   }
 
   var packetlist = new packet.List();
@@ -11805,7 +11814,9 @@ function generate(options) {
   var secretKeyPacket = new packet.SecretKey();
   secretKeyPacket.algorithm = enums.read(enums.publicKey, options.keyType);
   secretKeyPacket.generate(options.numBits);
-  secretKeyPacket.encrypt(options.passphrase);
+  if (options.passphrase) {
+    secretKeyPacket.encrypt(options.passphrase);
+  }
 
   var userIdPacket = new packet.Userid();
   userIdPacket.read(options.userId);
@@ -11840,7 +11851,9 @@ function generate(options) {
   var secretSubkeyPacket = new packet.SecretSubkey();
   secretSubkeyPacket.algorithm = enums.read(enums.publicKey, options.keyType);
   secretSubkeyPacket.generate(options.numBits);
-  secretSubkeyPacket.encrypt(options.passphrase);
+  if (options.passphrase) {
+    secretSubkeyPacket.encrypt(options.passphrase);
+  }
 
   dataToSign = {};
   dataToSign.key = secretKeyPacket;
@@ -12474,18 +12487,25 @@ Message.prototype.verify = function(keys) {
   var literalDataList = msg.packets.filterByTag(enums.packet.literal);
   if (literalDataList.length !== 1) throw new Error('Can only verify message with one literal data packet.');
   var signatureList = msg.packets.filterByTag(enums.packet.signature);
-  keys.forEach(function(key) {
-    for (var i = 0; i < signatureList.length; i++) {
-      var keyPacket = key.getKeyPacket([signatureList[i].issuerKeyId]);
+  for (var i = 0; i < signatureList.length; i++) {
+    var keyPacket = null;
+    for (var j = 0; j < keys.length; j++) {
+      keyPacket = keys[j].getKeyPacket([signatureList[i].issuerKeyId]);
       if (keyPacket) {
-        var verifiedSig = {};
-        verifiedSig.keyid = signatureList[i].issuerKeyId;
-        verifiedSig.valid = signatureList[i].verify(keyPacket, literalDataList[0]);
-        result.push(verifiedSig);
         break;
       }
     }
-  });
+
+    var verifiedSig = {};
+    if (keyPacket) {
+      verifiedSig.keyid = signatureList[i].issuerKeyId;
+      verifiedSig.valid = signatureList[i].verify(keyPacket, literalDataList[0]);
+    } else {
+      verifiedSig.keyid = signatureList[i].issuerKeyId;
+      verifiedSig.valid = null;
+    }
+    result.push(verifiedSig);
+  }
   return result;
 };
 
@@ -12527,6 +12547,22 @@ function readArmored(armoredText) {
 }
 
 /**
+ * Create a message object from signed content and a detached armored signature.
+ * @param {String} content An 8 bit ascii string containing e.g. a MIME subtree with text nodes or attachments
+ * @param {String} detachedSignature The detached ascii armored PGP signarure
+ */
+function readSignedContent(content, detachedSignature) {
+  var literalDataPacket = new packet.Literal();
+  literalDataPacket.setBytes(content, enums.read(enums.literal, enums.literal.binary));
+  var packetlist = new packet.List();
+  packetlist.push(literalDataPacket);
+  var input = armor.decode(detachedSignature).data;
+  packetlist.read(input);
+  var newMessage = new Message(packetlist);
+  return newMessage;
+}
+
+/**
  * creates new message object from text
  * @param {String} text
  * @return {module:message~Message} new message object
@@ -12559,30 +12595,31 @@ function fromBinary(bytes) {
 
 exports.Message = Message;
 exports.readArmored = readArmored;
+exports.readSignedContent = readSignedContent;
 exports.fromText = fromText;
 exports.fromBinary = fromBinary;
 
 },{"./config":4,"./crypto":20,"./encoding/armor.js":29,"./enums.js":31,"./key.js":33,"./packet":41}],38:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
-// 
+//
 // This library is free software; you can redistribute it and/or
 // modify it under the terms of the GNU Lesser General Public
 // License as published by the Free Software Foundation; either
 // version 2.1 of the License, or (at your option) any later version.
-// 
+//
 // This library is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // Lesser General Public License for more details.
-// 
+//
 // You should have received a copy of the GNU Lesser General Public
 // License along with this library; if not, write to the Free Software
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 /**
- * @fileoverview The openpgp base module should provide all of the functionality 
- * to consume the openpgp.js library. All additional classes are documented 
+ * @fileoverview The openpgp base module should provide all of the functionality
+ * to consume the openpgp.js library. All additional classes are documented
  * for extending and developing on top of the base library.
  */
 
@@ -12617,13 +12654,17 @@ function initWorker(path) {
 
 /**
  * Encrypts message text with keys
- * @param  {Array<module:key~Key>}  keys array of keys, used to encrypt the message
+ * @param  {(Array<module:key~Key>|module:key~Key)}  keys array of keys or single key, used to encrypt the message
  * @param  {String} text message as native JavaScript string
  * @param  {function} callback (optional) callback(error, result) for async style
  * @return {String}      encrypted ASCII armored message
  * @static
  */
 function encryptMessage(keys, text, callback) {
+  if (!keys.length) {
+    keys = [keys];
+  }
+
   if (useWorker(callback)) {
     asyncProxy.encryptMessage(keys, text, callback);
     return;
@@ -12640,7 +12681,7 @@ function encryptMessage(keys, text, callback) {
 
 /**
  * Signs message text and encrypts it
- * @param  {Array<module:key~Key>}  publicKeys array of keys, used to encrypt the message
+ * @param  {(Array<module:key~Key>|module:key~Key)}  publicKeys array of keys or single key, used to encrypt the message
  * @param  {module:key~Key}    privateKey private key with decrypted secret key data for signing
  * @param  {String} text       message as native JavaScript string
  * @param  {function} callback (optional) callback(error, result) for async style
@@ -12648,6 +12689,10 @@ function encryptMessage(keys, text, callback) {
  * @static
  */
 function signAndEncryptMessage(publicKeys, privateKey, text, callback) {
+  if (!publicKeys.length) {
+    publicKeys = [publicKeys];
+  }
+
   if (useWorker(callback)) {
     asyncProxy.signAndEncryptMessage(publicKeys, privateKey, text, callback);
     return;
@@ -12687,7 +12732,7 @@ function decryptMessage(privateKey, msg, callback) {
 /**
  * Decrypts message and verifies signatures
  * @param  {module:key~Key}     privateKey private key with decrypted secret key data
- * @param  {Array<module:key~Key>}   publicKeys public keys to verify signatures
+ * @param  {(Array<module:key~Key>|module:key~Key)}  publicKeys array of keys or single key, to verify signatures
  * @param  {module:message~Message} msg    the message object with signed and encrypted data
  * @param  {function} callback (optional) callback(error, result) for async style
  * @return {{text: String, signatures: Array<{keyid: module:type/keyid, valid: Boolean}>}}
@@ -12696,6 +12741,10 @@ function decryptMessage(privateKey, msg, callback) {
  * @static
  */
 function decryptAndVerifyMessage(privateKey, publicKeys, msg, callback) {
+  if (!publicKeys.length) {
+    publicKeys = [publicKeys];
+  }
+
   if (useWorker(callback)) {
     asyncProxy.decryptAndVerifyMessage(privateKey, publicKeys, msg, callback);
     return;
@@ -12715,13 +12764,17 @@ function decryptAndVerifyMessage(privateKey, publicKeys, msg, callback) {
 
 /**
  * Signs a cleartext message
- * @param  {Array<module:key~Key>}  privateKeys private key with decrypted secret key data to sign cleartext
+ * @param  {(Array<module:key~Key>|module:key~Key)}  privateKeys array of keys or single key with decrypted secret key data to sign cleartext
  * @param  {String} text        cleartext
  * @param  {function} callback (optional) callback(error, result) for async style
  * @return {String}             ASCII armored message
  * @static
  */
 function signClearMessage(privateKeys, text, callback) {
+  if (!privateKeys.length) {
+    privateKeys = [privateKeys];
+  }
+
   if (useWorker(callback)) {
     asyncProxy.signClearMessage(privateKeys, text, callback);
     return;
@@ -12736,7 +12789,7 @@ function signClearMessage(privateKeys, text, callback) {
 
 /**
  * Verifies signatures of cleartext signed message
- * @param  {Array<module:key~Key>}            publicKeys public keys to verify signatures
+ * @param  {(Array<module:key~Key>|module:key~Key)}  publicKeys array of keys or single key, to verify signatures
  * @param  {module:cleartext~CleartextMessage} msg    cleartext message object with signatures
  * @param  {function} callback (optional) callback(error, result) for async style
  * @return {{text: String, signatures: Array<{keyid: module:type/keyid, valid: Boolean}>}}
@@ -12744,6 +12797,10 @@ function signClearMessage(privateKeys, text, callback) {
  * @static
  */
 function verifyClearSignedMessage(publicKeys, msg, callback) {
+  if (!publicKeys.length) {
+    publicKeys = [publicKeys];
+  }
+
   if (useWorker(callback)) {
     asyncProxy.verifyClearSignedMessage(publicKeys, msg, callback);
     return;
@@ -14532,10 +14589,18 @@ SecretKey.prototype.write = function () {
 
 
 /** Encrypt the payload. By default, we use aes256 and iterated, salted string
- * to key specifier
+ * to key specifier. If the key is in a decrypted state (isDecrypted == true)
+ * and the passphrase is empty or undefined, the key will be set as not encrypted.
+ * This can be used to remove passphrase protection after calling decrypt().
  * @param {String} passphrase
  */
 SecretKey.prototype.encrypt = function (passphrase) {
+  if (this.isDecrypted && !passphrase) {
+    this.encrypted = null;
+    return;
+  } else if (!passphrase) {
+    throw new Error('The key must be decrypted before removing passphrase protection.');
+  }
 
   var s2k = new type_s2k(),
     symmetric = 'aes256',
@@ -14633,6 +14698,9 @@ SecretKey.prototype.generate = function (bits) {
  * Clear private MPIs, return to initial state
  */
 SecretKey.prototype.clearPrivateMPIs = function () {
+  if (!this.encrypted) {
+    throw new Error('If secret key is not encrypted, clearing private MPIs is irreversible.');
+  }
   this.mpi = this.mpi.slice(0, crypto.getPublicMpiCount(this.algorithm));
   this.isDecrypted = false;
 };
@@ -16575,17 +16643,17 @@ module.exports = {
 },{"./config":4}],63:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
-// 
+//
 // This library is free software; you can redistribute it and/or
 // modify it under the terms of the GNU Lesser General Public
 // License as published by the Free Software Foundation; either
 // version 2.1 of the License, or (at your option) any later version.
-// 
+//
 // This library is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // Lesser General Public License for more details.
-// 
+//
 // You should have received a copy of the GNU Lesser General Public
 // License along with this library; if not, write to the Free Software
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
@@ -16628,7 +16696,7 @@ function AsyncProxy(path) {
  * Message handling
  */
 AsyncProxy.prototype.onMessage = function(event) {
-  var msg = event.data; 
+  var msg = event.data;
   switch (msg.event) {
     case 'method-return':
       this.tasks.shift()(msg.err ? new Error(msg.err) : null, msg.data);
@@ -16671,16 +16739,19 @@ AsyncProxy.prototype.terminate = function() {
 
 /**
  * Encrypts message text with keys
- * @param  {Array<module:key~Key>}  keys array of keys, used to encrypt the message
+ * @param  {(Array<module:key~Key>|module:key~Key)}  keys array of keys or single key, used to encrypt the message
  * @param  {String} text message as native JavaScript string
  * @param  {Function} callback receives encrypted ASCII armored message
  */
 AsyncProxy.prototype.encryptMessage = function(keys, text, callback) {
+  if (!keys.length) {
+    keys = [keys];
+  }
   keys = keys.map(function(key) {
     return key.toPacketlist();
   });
   this.worker.postMessage({
-    event: 'encrypt-message', 
+    event: 'encrypt-message',
     keys: keys,
     text: text
   });
@@ -16689,18 +16760,21 @@ AsyncProxy.prototype.encryptMessage = function(keys, text, callback) {
 
 /**
  * Signs message text and encrypts it
- * @param  {Array<module:key~Key>}  publicKeys array of keys, used to encrypt the message
+ * @param  {(Array<module:key~Key>|module:key~Key)}  publicKeys array of keys or single key, used to encrypt the message
  * @param  {module:key~Key}    privateKey private key with decrypted secret key data for signing
  * @param  {String} text       message as native JavaScript string
  * @param  {Function} callback receives encrypted ASCII armored message
  */
 AsyncProxy.prototype.signAndEncryptMessage = function(publicKeys, privateKey, text, callback) {
+  if (!publicKeys.length) {
+    publicKeys = [publicKeys];
+  }
   publicKeys = publicKeys.map(function(key) {
     return key.toPacketlist();
   });
   privateKey = privateKey.toPacketlist();
   this.worker.postMessage({
-    event: 'sign-and-encrypt-message', 
+    event: 'sign-and-encrypt-message',
     publicKeys: publicKeys,
     privateKey: privateKey,
     text: text
@@ -16718,7 +16792,7 @@ AsyncProxy.prototype.signAndEncryptMessage = function(publicKeys, privateKey, te
 AsyncProxy.prototype.decryptMessage = function(privateKey, message, callback) {
   privateKey = privateKey.toPacketlist();
   this.worker.postMessage({
-    event: 'decrypt-message', 
+    event: 'decrypt-message',
     privateKey: privateKey,
     message: message
   });
@@ -16728,18 +16802,21 @@ AsyncProxy.prototype.decryptMessage = function(privateKey, message, callback) {
 /**
  * Decrypts message and verifies signatures
  * @param  {module:key~Key}     privateKey private key with decrypted secret key data
- * @param  {Array<module:key~Key>}   publicKeys public keys to verify signatures
+ * @param  {(Array<module:key~Key>|module:key~Key)}  publicKeys array of keys or single key to verify signatures
  * @param  {module:message~Message} message    the message object with signed and encrypted data
  * @param  {Function} callback   receives decrypted message as as native JavaScript string
  *                               with verified signatures or null if no literal data found
  */
 AsyncProxy.prototype.decryptAndVerifyMessage = function(privateKey, publicKeys, message, callback) {
   privateKey = privateKey.toPacketlist();
+  if (!publicKeys.length) {
+    publicKeys = [publicKeys];
+  }
   publicKeys = publicKeys.map(function(key) {
     return key.toPacketlist();
   });
   this.worker.postMessage({
-    event: 'decrypt-and-verify-message', 
+    event: 'decrypt-and-verify-message',
     privateKey: privateKey,
     publicKeys: publicKeys,
     message: message
@@ -16757,16 +16834,19 @@ AsyncProxy.prototype.decryptAndVerifyMessage = function(privateKey, publicKeys, 
 
 /**
  * Signs a cleartext message
- * @param  {Array<module:key~Key>}  privateKeys private key with decrypted secret key data to sign cleartext
+ * @param  {(Array<module:key~Key>|module:key~Key)}  privateKeys array of keys or single key, with decrypted secret key data to sign cleartext
  * @param  {String} text        cleartext
  * @param  {Function} callback       receives ASCII armored message
  */
 AsyncProxy.prototype.signClearMessage = function(privateKeys, text, callback) {
+  if (!privateKeys.length) {
+    privateKeys = [privateKeys];
+  }
   privateKeys = privateKeys.map(function(key) {
     return key.toPacketlist();
   });
   this.worker.postMessage({
-    event: 'sign-clear-message', 
+    event: 'sign-clear-message',
     privateKeys: privateKeys,
     text: text
   });
@@ -16775,16 +16855,19 @@ AsyncProxy.prototype.signClearMessage = function(privateKeys, text, callback) {
 
 /**
  * Verifies signatures of cleartext signed message
- * @param  {Array<module:key~Key>}            publicKeys public keys to verify signatures
+ * @param  {(Array<module:key~Key>|module:key~Key)}  publicKeys array of keys or single key, to verify signatures
  * @param  {module:cleartext~CleartextMessage} message    cleartext message object with signatures
  * @param  {Function} callback   receives cleartext with status of verified signatures
  */
 AsyncProxy.prototype.verifyClearSignedMessage = function(publicKeys, message, callback) {
+  if (!publicKeys.length) {
+    publicKeys = [publicKeys];
+  }
   publicKeys = publicKeys.map(function(key) {
     return key.toPacketlist();
   });
   this.worker.postMessage({
-    event: 'verify-clear-signed-message', 
+    event: 'verify-clear-signed-message',
     publicKeys: publicKeys,
     message: message
   });
@@ -16811,7 +16894,7 @@ AsyncProxy.prototype.verifyClearSignedMessage = function(publicKeys, message, ca
  */
 AsyncProxy.prototype.generateKeyPair = function(options, callback) {
   this.worker.postMessage({
-    event: 'generate-key-pair', 
+    event: 'generate-key-pair',
     options: options
   });
   this.tasks.push(function(err, data) {
