@@ -104,6 +104,8 @@ function sendAndHandleBackgroundCall(event){
   var password = form.find('#gCryptPasswordEncrypt').val();
   var recipients = getRecipients(form, event);
   var from = form.find('[name="from"]').val();
+  if ("" == from)
+    from = document.getElementsByClassName("gb_ia")[0].innerHTML;
   sendExtensionRequestPromise({method: event.data.action, recipients: recipients, from: from, message: contents.msg, password: password})
   .then(function(response) {
     if(response.type && response.type == "error") {
