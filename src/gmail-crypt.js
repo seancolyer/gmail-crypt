@@ -106,6 +106,11 @@ function sendAndHandleBackgroundCall(event){
   var from = form.find('[name="from"]').val();
   if ($.isEmptyObject(from)) {
     from = $('.gb_ia').text();
+    //It seems that gmail has changed it's index for the information.
+    //Check legacy value and then new value
+    if (-1 == from.indexOf("@")){
+      from = $('.gb_ja').text();
+    }
   }
   sendExtensionRequestPromise({method: event.data.action, recipients: recipients, from: from, message: contents.msg, password: password})
   .then(function(response) {
