@@ -97,16 +97,32 @@ function getRecipients(form, event){
   return recipients;
 }
 
+function findSender(form) {
+  // First look at the form (this works for multi-account users)
+  var from = form.find('[name="from"]').val();
+  // These selectors have been slightly unstable so taking a priority based approach
+  var selectors = [ '.gb_ja', '.gb_ia'];
+  $.each(selectors, function(selector) {
+    if ($.isEmptyObject(from) || from.indexOf('@') < 0) {
+      from = $(selector).text();
+    }
+  });
+
+  // This is a backup in case all of the other means have failed.
+  if ($.isEmptyObject(from) || from.indexOf('@') < 0) {
+    from = $('.gb_ga').closest(':contains("@")').find(':contains("@")').text();
+  }
+
+  return from;
+}
+
 function sendAndHandleBackgroundCall(event){
   var form = $(event.currentTarget).parents('.I5').find('form');
   form.find('.alert').hide();
   var contents = getContents(form, event);
   var password = form.find('#gCryptPasswordEncrypt').val();
   var recipients = getRecipients(form, event);
-  var from = form.find('[name="from"]').val();
-  if ($.isEmptyObject(from)) {
-    from = $('.gb_ia').text();
-  }
+  var from = findSender(form);
   sendExtensionRequestPromise({method: event.data.action, recipients: recipients, from: from, message: contents.msg, password: password})
   .then(function(response) {
     if(response.type && response.type == "error") {
