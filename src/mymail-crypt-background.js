@@ -172,6 +172,12 @@ function verify(senderEmail, msg) {
   }
 }
 
+function handleResponsePromise(promise, callback) {
+  promise.then(function(result) {
+    callback(result);
+  });
+}
+
 chrome.extension.onRequest.addListener(function(request,sender,sendResponse){
     var result;
     //config can change at anytime, reload on request
@@ -183,27 +189,27 @@ chrome.extension.onRequest.addListener(function(request,sender,sendResponse){
 
     if (request.method == "encryptAndSign") {
       result = encryptAndSign(request.recipients, request.from, request.message, request.password);
-      sendResponse(result);
+      handleResponsePromise(result, sendResponse);
     }
     else if (request.method == "encrypt") {
       result = encrypt(request.recipients, request.from, request.message);
-      sendResponse(result);
+      handleResponsePromise(result, sendResponse);
     }
     else if (request.method == "sign") {
       result = sign(request.message, request.password, request.from);
-      sendResponse(result);
+      handleResponsePromise(result, sendResponse);
     }
     else if (request.method == "decrypt") {
       result = decrypt(request.senderEmail, request.msg, request.password);
-      sendResponse(result);
+      handleResponsePromise(result, sendResponse);
     }
     else if (request.method == "verify") {
       result = verify(request.senderEmail, request.msg);
-      sendResponse(result);
+      handleResponsePromise(result, sendResponse);
     }
     else if(request.method == "getOption") {
       result = gCryptUtil.getOption(config, request.option, request.thirdParty);
-      sendResponse(result);
+      handleResponsePromise(result, sendResponse);
     }
     else{
       throw new Error("Unsupported Operation");
