@@ -71,58 +71,72 @@ function prepareAndValidateKeysForRecipients(recipients, from) {
   return keys;
 }
 
-function encryptAndSign(recipients, from, message, password) {
+function encryptAndSign(recipients, from, message, password, callback) {
+  var promise;
   var privKey = prepareAndValidatePrivateKey(password, from);
-  if(privKey.type && privKey.type == "error") {
-    return privKey;
-  }
   var publicKeys = prepareAndValidateKeysForRecipients(recipients, from);
-  if(publicKeys.type && publicKeys.type == "error") {
-    return publicKeys;
+  if(privKey.type && privKey.type == "error") {
+    promise = Promise.resolve(privKey);
   }
-  var cipherText = openpgp.signAndEncryptMessage(publicKeys, privKey, message);
-  return cipherText;
+  else if(publicKeys.type && publicKeys.type == "error") {
+    promise = Promise.resolve(publicKeys);
+  }
+  else {
+    promise = openpgp.signAndEncryptMessage(publicKeys, privKey, message);
+  }
+  handleResponsePromise(promise, callback);
 }
 
-function encrypt(recipients, from, message) {
+function encrypt(recipients, from, message, callback) {
+  var promise;
   var publicKeys = prepareAndValidateKeysForRecipients(recipients, from);
   if(publicKeys && publicKeys.type && publicKeys.type == "error") {
-    return publicKeys;
+    promise = Promise.resolve(publicKeys);
   }
-  var cipherText = openpgp.encryptMessage(publicKeys, message);
-  return cipherText;
+  else {
+    promise = openpgp.encryptMessage(publicKeys, message);
+  }
+  handleResponsePromise(promise, callback);
 }
 
-function sign(message, password, from) {
+function sign(message, password, from, callback) {
+  var promise;
   var privKey = prepareAndValidatePrivateKey(password, from);
   if(privKey && privKey.type && privKey.type == "error") {
-    return privKey;
+    promise = Promise.resolve(privKey);
   }
-  //TODO use privKeys because openpgp.js wants this to be an array. Should unify it's interface.
-  var privKeys = [privKey];
-  var cipherText = openpgp.signClearMessage(privKeys, message);
-  return cipherText;
+  else {
+    //TODO use privKeys because openpgp.js wants this to be an array. Should unify it's interface.
+    var privKeys = [privKey];
+    promise = openpgp.signClearMessage(privKeys, message);
+  }
+  handleResponsePromise(promise, callback);
 }
 
-var decryptResult = function(decrypted, status, result) {
+var decryptResult = function(decrypted, status, result, callback) {
   output = {};
   output.decrypted = decrypted;
   output.status = status;
   output.result = result;
-  return output;
+  var promise = Promise.resolve(output);
+  handleResponsePromise(promise, callback);
 };
 
-function decrypt(senderEmail, msg, password) {
+function decrypt(senderEmail, msg, password, callback) {
   var status = [];
   try{
     msg = openpgp.message.readArmored(msg);
   }
   catch (e) {
     status.push(gCryptAlerts.gCryptAlertDecryptNoMessage);
-    return decryptResult(false, status);
+    decryptResult(false, status, undefined, callback);
   }
   var keyIds = msg.getEncryptionKeyIds();
   var privateKeys = getKeys(keyIds, keyring.privateKeys);
+  if (_.size(privateKeys) === 0) {
+    status.push(gCryptAlerts.gCryptAlertDecrypt);
+    decryptResult(false, status, undefined, callback);
+  }
   var publicKeys = keyring.publicKeys.getForAddress(senderEmail);
   for (var r = 0; r < privateKeys.length; r++){
     var key = privateKeys[r];
@@ -131,45 +145,44 @@ function decrypt(senderEmail, msg, password) {
       status.push(gCryptAlerts.gCryptAlertPassword);
     }
 
-    try {
-      var result = openpgp.decryptAndVerifyMessage(key, publicKeys, msg);
-      for (var s = 0; s < result.signatures.length; s++) {
-        if (result.signatures[s].valid) {
+    var promise = openpgp.decryptAndVerifyMessage(key, publicKeys, msg);
+    promise.then(function(result) {
+      _(result.signatures).each(function(signature) {
+        if (signature.valid) {
           status = [gCryptAlerts.gCryptAbleVerifySignature];
         }
-      }
+      });
       if (status.length === 0) {
         status = [gCryptAlerts.gCryptUnableVerifySignature];
       }
-      return decryptResult(true, status, result);
-    }
-    catch (e) {
+      decryptResult(true, status, result, callback);
 
-    }
+    }).catch(function(exception) {
+      status.push(gCryptAlerts.gCryptAlertDecrypt);
+      decryptResult(false, status, undefined, callback);
+    });
   }
-  status.push(gCryptAlerts.gCryptAlertDecrypt);
-  return decryptResult(false, status);
 }
 
-function verify(senderEmail, msg) {
+function verify(senderEmail, msg, callback) {
   var status = [];
   try{
     msg = openpgp.cleartext.readArmored(msg);
   }
   catch (e) {
     status.push(gCryptAlerts.gCryptAlertDecryptNoCleartextMessage);
-    return decryptResult(false, status);
+    decryptResult(false, status, undefined, callback);
   }
   var publicKeys = keyring.publicKeys.getForAddress(senderEmail);
-  try {
-    var result = openpgp.verifyClearSignedMessage(publicKeys, msg);
+  var promise = openpgp.verifyClearSignedMessage(publicKeys, msg);
+  promise.then(function(result) {
     status.push(gCryptAlerts.gCryptAbleVerifySignature);
-    return decryptResult(true, status, result);
-  }
-  catch (e) {
+    decryptResult(true, status, result, callback);
+
+  }).catch(function(exception) {
     status.push(gCryptAlerts.gCryptUnableVerifySignature);
-    return decryptResult(false, status);
-  }
+    decryptResult(false, status, undefined, callback);
+  });
 }
 
 function handleResponsePromise(promise, callback) {
@@ -178,7 +191,7 @@ function handleResponsePromise(promise, callback) {
   });
 }
 
-chrome.extension.onRequest.addListener(function(request,sender,sendResponse){
+chrome.extension.onRequest.addListener(function(request, sender, callback){
     var result;
     //config can change at anytime, reload on request
     config.read();
@@ -188,28 +201,22 @@ chrome.extension.onRequest.addListener(function(request,sender,sendResponse){
     keyring.privateKeys.keys = keyring.storeHandler.loadPrivate();
 
     if (request.method == "encryptAndSign") {
-      result = encryptAndSign(request.recipients, request.from, request.message, request.password);
-      handleResponsePromise(result, sendResponse);
+      result = encryptAndSign(request.recipients, request.from, request.message, request.password, callback);
     }
     else if (request.method == "encrypt") {
-      result = encrypt(request.recipients, request.from, request.message);
-      handleResponsePromise(result, sendResponse);
+      result = encrypt(request.recipients, request.from, request.message, callback);
     }
     else if (request.method == "sign") {
-      result = sign(request.message, request.password, request.from);
-      handleResponsePromise(result, sendResponse);
+      result = sign(request.message, request.password, request.from, callback);
     }
     else if (request.method == "decrypt") {
-      result = decrypt(request.senderEmail, request.msg, request.password);
-      handleResponsePromise(result, sendResponse);
+      result = decrypt(request.senderEmail, request.msg, request.password, callback);
     }
     else if (request.method == "verify") {
-      result = verify(request.senderEmail, request.msg);
-      handleResponsePromise(result, sendResponse);
+      result = verify(request.senderEmail, request.msg, callback);
     }
     else if(request.method == "getOption") {
-      result = gCryptUtil.getOption(config, request.option, request.thirdParty);
-      handleResponsePromise(result, sendResponse);
+      result = gCryptUtil.getOption(config, request.option, request.thirdParty, callback);
     }
     else{
       throw new Error("Unsupported Operation");
