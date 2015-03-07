@@ -116,18 +116,29 @@ function findSender(form) {
   return from;
 }
 
+// Cheating at multisync
+var pendingBackgroundCall = false;
 function sendAndHandleBackgroundCall(event){
+  if (pendingBackgroundCall) {
+    return;
+  }
+  pendingBackgroundCall = true;
   var form = $(event.currentTarget).parents('.I5').find('form');
   form.find('.alert').hide();
   var contents = getContents(form, event);
   var password = form.find('#gCryptPasswordEncrypt').val();
   var recipients = getRecipients(form, event);
   var from = findSender(form);
+
+  $(event.currentTarget).parent().find('[class*=btn]').addClass('disabled');
+
   sendExtensionRequestPromise({method: event.data.action, recipients: recipients, from: from, message: contents.msg, password: password})
   .then(function(response) {
     if(response.type && response.type == "error") {
       showAlert(response, form);
     }
+    $(event.currentTarget).parent().find('[class*=btn]').removeClass('disabled');
+    pendingBackgroundCall = false;
     writeContents(contents, response);
   });
 }
@@ -238,7 +249,7 @@ function composeIntercept(ev) {
     sendExtensionRequestPromise({method: 'getOption', option: 'stopAutomaticDrafts', thirdParty: true})
     .then(function(response) {
       if(response === true){
-        stopAutomaticDrafts();
+        //stopAutomaticDrafts();
       }
     });
   }

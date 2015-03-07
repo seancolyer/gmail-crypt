@@ -216,12 +216,28 @@ chrome.extension.onRequest.addListener(function(request, sender, callback){
       result = verify(request.senderEmail, request.msg, callback);
     }
     else if(request.method == "getOption") {
-      result = gCryptUtil.getOption(config, request.option, request.thirdParty, callback);
+      callback(gCryptUtil.getOption(config, request.option, request.thirdParty));
     }
     else{
       throw new Error("Unsupported Operation");
     }
 });
+
+function setupDraftStopping() {
+  var enabled = gCryptUtil.getOption(config, "stopAutomaticDrafts", true, setupDraftStopping);
+  if (enabled) {
+    var filter = {urls: ["*://mail.google.com/mail/u/*"], types: ["xmlhttprequest"]};
+    chrome.webRequest.onBeforeRequest.addListener(determineIfRequestDraftSaving, filter, ["requestBody", "blocking"]);
+  }
+}
+
+function determineIfRequestDraftSaving(details) {
+  if (details.method == "POST" && ( _.contains(details.url, "autosave") ||
+       "body" in details.requestBody.formData ||
+       "subject" in details.requestBody.formData )) {
+    return {cancel: true};
+  }
+}
 
 document.onload = function() {
   keyring = new openpgp.Keyring();
@@ -230,4 +246,5 @@ document.onload = function() {
   config = new openpgp.config.localStorage();
   config.read();
   openpgp.config = config.config;
+  setupDraftStopping();
 }();

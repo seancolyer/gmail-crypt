@@ -1,32 +1,34 @@
 {
-"name":"Mymail-Crypt for Gmail™",
-"version":"32",
-"manifest_version":2,
-"description":"Extension implementing GPG into Webmail (Gmail™) using the OpenPGP.js library. This project is no way affiliated with Google™.",
-"icons": {
+  "name":"Mymail-Crypt for Gmail™",
+  "version":"32",
+  "manifest_version":2,
+  "description":"Extension implementing GPG into Webmail (Gmail™) using the OpenPGP.js library. This project is no way affiliated with Google™.",
+  "icons": {
     "128":"mymail-crypt.128.png"
-    },
-"permissions":[
+  },
+  "permissions":[
+    "webRequest",
+    "webRequestBlocking",
     "https://mail.google.com/*",
     "http://mail.google.com/*",
     "https://google.com/*",
     "http://google.com/*"
-    ],
-"background": {
+  ],
+  "background": {
     "scripts":["lib/lodash-2.4.1.js", "lib/jquery-2.1.0.min.js", "lib/openpgp.js", "mymail-crypt-util.js", "mymail-crypt-background.js"]
-    },
-"content_scripts": [{
+  },
+  "content_scripts": [{
     "matches":["https://mail.google.com/*","http://mail.google.com/*"],
     "css": ["bootstrap.btn.css", "bootstrap.modal.css", "mymail-crypt.css"],
     "js": ["lib/jquery-2.1.0.min.js", "lib/bootstrap-dropdown.js", "lib/bootstrap-modal.js","lib/openpgp.js","mymail-crypt-util.js","mymail-crypt.js"],
     "run_at":"document_idle",
     "all_frames":true
-}],
-"homepage_url":"http://prometheusx.net",
-"options_page":"mymail-crypt-options.html",
-"web_accessible_resources": [
+  }],
+  "homepage_url":"http://prometheusx.net",
+  "options_page":"mymail-crypt-options.html",
+  "web_accessible_resources": [
     "images/decryptIcon.png",
     "images/encryptIcon.png",
     "lib/jquery-2.1.0.min.map"
-    ]
+  ]
 }
