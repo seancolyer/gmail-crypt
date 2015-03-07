@@ -731,6 +731,9 @@ CleartextMessage.prototype.sign = function(privateKeys) {
   var literalDataPacket = new packet.Literal();
   literalDataPacket.setText(this.text);
   for (var i = 0; i < privateKeys.length; i++) {
+    if (privateKeys[i].isPublic()) {
+      throw new Error('Need private key for signing');
+    }
     var signaturePacket = new packet.Signature();
     signaturePacket.signatureType = enums.signature.text;
     signaturePacket.hashAlgorithm = config.prefer_hash_algorithm;
@@ -757,7 +760,7 @@ CleartextMessage.prototype.verify = function(keys) {
   for (var i = 0; i < signatureList.length; i++) {
     var keyPacket = null;
     for (var j = 0; j < keys.length; j++) {
-      keyPacket = keys[j].getKeyPacket([signatureList[i].issuerKeyId]);
+      keyPacket = keys[j].getSigningKeyPacket(signatureList[i].issuerKeyId);
       if (keyPacket) {
         break;
       }
@@ -865,1271 +868,89 @@ function verifyHeaders(headers, packetlist) {
 exports.CleartextMessage = CleartextMessage;
 exports.readArmored = readArmored;
 
-},{"./config":15,"./encoding/armor.js":40,"./enums.js":42,"./packet":52}],13:[function(require,module,exports){
-JXG = {
-  exists: (function(undefined) {
-    return function(v) {
-      return !(v === undefined || v === null);
-    };
-  })()
-};
-JXG.decompress = function(str) {
-  return unescape((new JXG.Util.Unzip(JXG.Util.Base64.decodeAsArray(str))).unzip()[0][0]);
-};
-/*
-    Copyright 2008-2012
-        Matthias Ehmann,
-        Michael Gerhaeuser,
-        Carsten Miller,
-        Bianca Valentin,
-        Alfred Wassermann,
-        Peter Wilfahrt
-
-    This file is part of JSXGraph.
-    
-    Dual licensed under the Apache License Version 2.0, or LGPL Version 3 licenses.
-
-    You should have received a copy of the GNU Lesser General Public License
-    along with JSXCompressor.  If not, see <http://www.gnu.org/licenses/>.
-    
-    You should have received a copy of the Apache License along with JSXCompressor.  
-    If not, see <http://www.apache.org/licenses/>.
-
-*/
-
-/**
- * @class Util class
- * @classdesc Utilities for uncompressing and base64 decoding
- * Class for gunzipping, unzipping and base64 decoding of files.
- * It is used for reading GEONExT, Geogebra and Intergeo files.
- *
- * Only Huffman codes are decoded in gunzip.
- * The code is based on the source code for gunzip.c by Pasi Ojala 
- * {@link http://www.cs.tut.fi/~albert/Dev/gunzip/gunzip.c}
- * {@link http://www.cs.tut.fi/~albert}
- */
-JXG.Util = {};
-
-/**
- * Unzip zip files
- */
-JXG.Util.Unzip = function(barray) {
-  var outputArr = [],
-    output = "",
-    debug = false,
-    gpflags,
-    files = 0,
-    unzipped = [],
-    crc,
-    buf32k = new Array(32768),
-    bIdx = 0,
-    modeZIP = false,
-
-    CRC, SIZE,
-
-    bitReverse = [
-        0x00, 0x80, 0x40, 0xc0, 0x20, 0xa0, 0x60, 0xe0,
-        0x10, 0x90, 0x50, 0xd0, 0x30, 0xb0, 0x70, 0xf0,
-        0x08, 0x88, 0x48, 0xc8, 0x28, 0xa8, 0x68, 0xe8,
-        0x18, 0x98, 0x58, 0xd8, 0x38, 0xb8, 0x78, 0xf8,
-        0x04, 0x84, 0x44, 0xc4, 0x24, 0xa4, 0x64, 0xe4,
-        0x14, 0x94, 0x54, 0xd4, 0x34, 0xb4, 0x74, 0xf4,
-        0x0c, 0x8c, 0x4c, 0xcc, 0x2c, 0xac, 0x6c, 0xec,
-        0x1c, 0x9c, 0x5c, 0xdc, 0x3c, 0xbc, 0x7c, 0xfc,
-        0x02, 0x82, 0x42, 0xc2, 0x22, 0xa2, 0x62, 0xe2,
-        0x12, 0x92, 0x52, 0xd2, 0x32, 0xb2, 0x72, 0xf2,
-        0x0a, 0x8a, 0x4a, 0xca, 0x2a, 0xaa, 0x6a, 0xea,
-        0x1a, 0x9a, 0x5a, 0xda, 0x3a, 0xba, 0x7a, 0xfa,
-        0x06, 0x86, 0x46, 0xc6, 0x26, 0xa6, 0x66, 0xe6,
-        0x16, 0x96, 0x56, 0xd6, 0x36, 0xb6, 0x76, 0xf6,
-        0x0e, 0x8e, 0x4e, 0xce, 0x2e, 0xae, 0x6e, 0xee,
-        0x1e, 0x9e, 0x5e, 0xde, 0x3e, 0xbe, 0x7e, 0xfe,
-        0x01, 0x81, 0x41, 0xc1, 0x21, 0xa1, 0x61, 0xe1,
-        0x11, 0x91, 0x51, 0xd1, 0x31, 0xb1, 0x71, 0xf1,
-        0x09, 0x89, 0x49, 0xc9, 0x29, 0xa9, 0x69, 0xe9,
-        0x19, 0x99, 0x59, 0xd9, 0x39, 0xb9, 0x79, 0xf9,
-        0x05, 0x85, 0x45, 0xc5, 0x25, 0xa5, 0x65, 0xe5,
-        0x15, 0x95, 0x55, 0xd5, 0x35, 0xb5, 0x75, 0xf5,
-        0x0d, 0x8d, 0x4d, 0xcd, 0x2d, 0xad, 0x6d, 0xed,
-        0x1d, 0x9d, 0x5d, 0xdd, 0x3d, 0xbd, 0x7d, 0xfd,
-        0x03, 0x83, 0x43, 0xc3, 0x23, 0xa3, 0x63, 0xe3,
-        0x13, 0x93, 0x53, 0xd3, 0x33, 0xb3, 0x73, 0xf3,
-        0x0b, 0x8b, 0x4b, 0xcb, 0x2b, 0xab, 0x6b, 0xeb,
-        0x1b, 0x9b, 0x5b, 0xdb, 0x3b, 0xbb, 0x7b, 0xfb,
-        0x07, 0x87, 0x47, 0xc7, 0x27, 0xa7, 0x67, 0xe7,
-        0x17, 0x97, 0x57, 0xd7, 0x37, 0xb7, 0x77, 0xf7,
-        0x0f, 0x8f, 0x4f, 0xcf, 0x2f, 0xaf, 0x6f, 0xef,
-        0x1f, 0x9f, 0x5f, 0xdf, 0x3f, 0xbf, 0x7f, 0xff
-    ],
-
-    cplens = [
-        3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31,
-        35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258, 0, 0
-    ],
-
-    cplext = [
-        0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2,
-        3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0, 99, 99
-    ],
-    /* 99==invalid */
-
-    cpdist = [
-        0x0001, 0x0002, 0x0003, 0x0004, 0x0005, 0x0007, 0x0009, 0x000d,
-        0x0011, 0x0019, 0x0021, 0x0031, 0x0041, 0x0061, 0x0081, 0x00c1,
-        0x0101, 0x0181, 0x0201, 0x0301, 0x0401, 0x0601, 0x0801, 0x0c01,
-        0x1001, 0x1801, 0x2001, 0x3001, 0x4001, 0x6001
-    ],
-
-    cpdext = [
-        0, 0, 0, 0, 1, 1, 2, 2,
-        3, 3, 4, 4, 5, 5, 6, 6,
-        7, 7, 8, 8, 9, 9, 10, 10,
-        11, 11, 12, 12, 13, 13
-    ],
-
-    border = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15],
-
-    bA = barray,
-
-    bytepos = 0,
-    bitpos = 0,
-    bb = 1,
-    bits = 0,
-
-    NAMEMAX = 256,
-
-    nameBuf = [],
-
-    fileout;
-
-  function readByte() {
-    bits += 8;
-    if (bytepos < bA.length) {
-      //if (debug)
-      //    document.write(bytepos+": "+bA[bytepos]+"<br>");
-      return bA[bytepos++];
-    } else
-      return -1;
-  }
-
-  function byteAlign() {
-    bb = 1;
-  }
-
-  function readBit() {
-    var carry;
-    bits++;
-    carry = (bb & 1);
-    bb >>= 1;
-    if (bb === 0) {
-      bb = readByte();
-      carry = (bb & 1);
-      bb = (bb >> 1) | 0x80;
-    }
-    return carry;
-  }
-
-  function readBits(a) {
-    var res = 0,
-      i = a;
-
-    while (i--) {
-      res = (res << 1) | readBit();
-    }
-    if (a) {
-      res = bitReverse[res] >> (8 - a);
-    }
-    return res;
-  }
-
-  function flushBuffer() {
-    //document.write('FLUSHBUFFER:'+buf32k);
-    bIdx = 0;
-  }
-
-  function addBuffer(a) {
-    SIZE++;
-    //CRC=updcrc(a,crc);
-    buf32k[bIdx++] = a;
-    outputArr.push(String.fromCharCode(a));
-    //output+=String.fromCharCode(a);
-    if (bIdx == 0x8000) {
-      //document.write('ADDBUFFER:'+buf32k);
-      bIdx = 0;
-    }
-  }
-
-  function HufNode() {
-    this.b0 = 0;
-    this.b1 = 0;
-    this.jump = null;
-    this.jumppos = -1;
-  }
-
-  var LITERALS = 288;
-
-  var literalTree = new Array(LITERALS);
-  var distanceTree = new Array(32);
-  var treepos = 0;
-  var Places = null;
-  var Places2 = null;
-
-  var impDistanceTree = new Array(64);
-  var impLengthTree = new Array(64);
-
-  var len = 0;
-  var fpos = new Array(17);
-  fpos[0] = 0;
-  var flens;
-  var fmax;
-
-  function IsPat() {
-    while (1) {
-      if (fpos[len] >= fmax)
-        return -1;
-      if (flens[fpos[len]] == len)
-        return fpos[len]++;
-      fpos[len]++;
-    }
-  }
-
-  function Rec() {
-    var curplace = Places[treepos];
-    var tmp;
-    if (debug)
-      document.write("<br>len:" + len + " treepos:" + treepos);
-    if (len == 17) { //war 17
-      return -1;
-    }
-    treepos++;
-    len++;
-
-    tmp = IsPat();
-    if (debug)
-      document.write("<br>IsPat " + tmp);
-    if (tmp >= 0) {
-      curplace.b0 = tmp; /* leaf cell for 0-bit */
-      if (debug)
-        document.write("<br>b0 " + curplace.b0);
-    } else {
-      /* Not a Leaf cell */
-      curplace.b0 = 0x8000;
-      if (debug)
-        document.write("<br>b0 " + curplace.b0);
-      if (Rec())
-        return -1;
-    }
-    tmp = IsPat();
-    if (tmp >= 0) {
-      curplace.b1 = tmp; /* leaf cell for 1-bit */
-      if (debug)
-        document.write("<br>b1 " + curplace.b1);
-      curplace.jump = null; /* Just for the display routine */
-    } else {
-      /* Not a Leaf cell */
-      curplace.b1 = 0x8000;
-      if (debug)
-        document.write("<br>b1 " + curplace.b1);
-      curplace.jump = Places[treepos];
-      curplace.jumppos = treepos;
-      if (Rec())
-        return -1;
-    }
-    len--;
-    return 0;
-  }
-
-  function CreateTree(currentTree, numval, lengths, show) {
-    var i;
-    /* Create the Huffman decode tree/table */
-    //document.write("<br>createtree<br>");
-    if (debug)
-      document.write("currentTree " + currentTree + " numval " + numval + " lengths " + lengths + " show " + show);
-    Places = currentTree;
-    treepos = 0;
-    flens = lengths;
-    fmax = numval;
-    for (i = 0; i < 17; i++)
-      fpos[i] = 0;
-    len = 0;
-    if (Rec()) {
-      //fprintf(stderr, "invalid huffman tree\n");
-      if (debug)
-        alert("invalid huffman tree\n");
-      return -1;
-    }
-    if (debug) {
-      document.write('<br>Tree: ' + Places.length);
-      for (var a = 0; a < 32; a++) {
-        document.write("Places[" + a + "].b0=" + Places[a].b0 + "<br>");
-        document.write("Places[" + a + "].b1=" + Places[a].b1 + "<br>");
-      }
-    }
-
-    /*if(show) {
-            var tmp;
-            for(tmp=currentTree;tmp<Places;tmp++) {
-                fprintf(stdout, "0x%03x  0x%03x (0x%04x)",tmp-currentTree, tmp->jump?tmp->jump-currentTree:0,(tmp->jump?tmp->jump-currentTree:0)*6+0xcf0);
-                if(!(tmp.b0 & 0x8000)) {
-                    //fprintf(stdout, "  0x%03x (%c)", tmp->b0,(tmp->b0<256 && isprint(tmp->b0))?tmp->b0:'�');
-                }
-                if(!(tmp.b1 & 0x8000)) {
-                    if((tmp.b0 & 0x8000))
-                        fprintf(stdout, "           ");
-                    fprintf(stdout, "  0x%03x (%c)", tmp->b1,(tmp->b1<256 && isprint(tmp->b1))?tmp->b1:'�');
-                }
-                fprintf(stdout, "\n");
-            }
-        }*/
-    return 0;
-  }
-
-  function DecodeValue(currentTree) {
-    var len, i,
-      xtreepos = 0,
-      X = currentTree[xtreepos],
-      b;
-
-    /* decode one symbol of the data */
-    while (1) {
-      b = readBit();
-      if (debug)
-        document.write("b=" + b);
-      if (b) {
-        if (!(X.b1 & 0x8000)) {
-          if (debug)
-            document.write("ret1");
-          return X.b1; /* If leaf node, return data */
-        }
-        X = X.jump;
-        len = currentTree.length;
-        for (i = 0; i < len; i++) {
-          if (currentTree[i] === X) {
-            xtreepos = i;
-            break;
-          }
-        }
-        //xtreepos++;
-      } else {
-        if (!(X.b0 & 0x8000)) {
-          if (debug)
-            document.write("ret2");
-          return X.b0; /* If leaf node, return data */
-        }
-        //X++; //??????????????????
-        xtreepos++;
-        X = currentTree[xtreepos];
-      }
-    }
-  }
-
-  function DeflateLoop() {
-    var last, c, type, i, j, len, dist;
-
-    do {
-      /*if((last = readBit())){
-            fprintf(errfp, "Last Block: ");
-        } else {
-            fprintf(errfp, "Not Last Block: ");
-        }*/
-      last = readBit();
-      type = readBits(2);
-      switch (type) {
-        case 0:
-          if (debug)
-            alert("Stored\n");
-          break;
-        case 1:
-          if (debug)
-            alert("Fixed Huffman codes\n");
-          break;
-        case 2:
-          if (debug)
-            alert("Dynamic Huffman codes\n");
-          break;
-        case 3:
-          if (debug)
-            alert("Reserved block type!!\n");
-          break;
-        default:
-          if (debug)
-            alert("Unexpected value %d!\n", type);
-          break;
-      }
-
-      if (type === 0) {
-        var blockLen, cSum;
-
-        // Stored 
-        byteAlign();
-        blockLen = readByte();
-        blockLen |= (readByte() << 8);
-
-        cSum = readByte();
-        cSum |= (readByte() << 8);
-
-        if (((blockLen ^ ~cSum) & 0xffff)) {
-          document.write("BlockLen checksum mismatch\n");
-        }
-        while (blockLen--) {
-          c = readByte();
-          addBuffer(c);
-        }
-      } else if (type == 1) {
-        /* Fixed Huffman tables -- fixed decode routine */
-        while (1) {
-          /*
-                256    0000000        0
-                :   :     :
-                279    0010111        23
-                0   00110000    48
-                :    :      :
-                143    10111111    191
-                280 11000000    192
-                :    :      :
-                287 11000111    199
-                144    110010000    400
-                :    :       :
-                255    111111111    511
-    
-                Note the bit order!
-                */
-
-          j = (bitReverse[readBits(7)] >> 1);
-          if (j > 23) {
-            j = (j << 1) | readBit(); /* 48..255 */
-
-            if (j > 199) { /* 200..255 */
-              j -= 128; /*  72..127 */
-              j = (j << 1) | readBit(); /* 144..255 << */
-            } else { /*  48..199 */
-              j -= 48; /*   0..151 */
-              if (j > 143) {
-                j = j + 136; /* 280..287 << */
-                /*   0..143 << */
-              }
-            }
-          } else { /*   0..23 */
-            j += 256; /* 256..279 << */
-          }
-          if (j < 256) {
-            addBuffer(j);
-            //document.write("out:"+String.fromCharCode(j));
-            /*fprintf(errfp, "@%d %02x\n", SIZE, j);*/
-          } else if (j == 256) {
-            /* EOF */
-            break;
-          } else {
-            j -= 256 + 1; /* bytes + EOF */
-            len = readBits(cplext[j]) + cplens[j];
-
-            j = bitReverse[readBits(5)] >> 3;
-            if (cpdext[j] > 8) {
-              dist = readBits(8);
-              dist |= (readBits(cpdext[j] - 8) << 8);
-            } else {
-              dist = readBits(cpdext[j]);
-            }
-            dist += cpdist[j];
-
-            /*fprintf(errfp, "@%d (l%02x,d%04x)\n", SIZE, len, dist);*/
-            for (j = 0; j < len; j++) {
-              c = buf32k[(bIdx - dist) & 0x7fff];
-              addBuffer(c);
-            }
-          }
-        } // while
-      } else if (type == 2) {
-        var n, literalCodes, distCodes, lenCodes;
-        var ll = new Array(288 + 32); // "static" just to preserve stack
-
-        // Dynamic Huffman tables 
-
-        literalCodes = 257 + readBits(5);
-        distCodes = 1 + readBits(5);
-        lenCodes = 4 + readBits(4);
-        //document.write("<br>param: "+literalCodes+" "+distCodes+" "+lenCodes+"<br>");
-        for (j = 0; j < 19; j++) {
-          ll[j] = 0;
-        }
-
-        // Get the decode tree code lengths
-
-        //document.write("<br>");
-        for (j = 0; j < lenCodes; j++) {
-          ll[border[j]] = readBits(3);
-          //document.write(ll[border[j]]+" ");
-        }
-        //fprintf(errfp, "\n");
-        //document.write('<br>ll:'+ll);
-        len = distanceTree.length;
-        for (i = 0; i < len; i++)
-          distanceTree[i] = new HufNode();
-        if (CreateTree(distanceTree, 19, ll, 0)) {
-          flushBuffer();
-          return 1;
-        }
-        if (debug) {
-          document.write("<br>distanceTree");
-          for (var a = 0; a < distanceTree.length; a++) {
-            document.write("<br>" + distanceTree[a].b0 + " " + distanceTree[a].b1 + " " + distanceTree[a].jump + " " +
-              distanceTree[a].jumppos);
-            /*if (distanceTree[a].jumppos!=-1)
-                document.write(" "+distanceTree[a].jump.b0+" "+distanceTree[a].jump.b1);
-             */
-          }
-        }
-        //document.write('<BR>tree created');
-
-        //read in literal and distance code lengths
-        n = literalCodes + distCodes;
-        i = 0;
-        var z = -1;
-        if (debug)
-          document.write("<br>n=" + n + " bits: " + bits + "<br>");
-        while (i < n) {
-          z++;
-          j = DecodeValue(distanceTree);
-          if (debug)
-            document.write("<br>" + z + " i:" + i + " decode: " + j + "    bits " + bits + "<br>");
-          if (j < 16) { // length of code in bits (0..15)
-            ll[i++] = j;
-          } else if (j == 16) { // repeat last length 3 to 6 times 
-            var l;
-            j = 3 + readBits(2);
-            if (i + j > n) {
-              flushBuffer();
-              return 1;
-            }
-            l = i ? ll[i - 1] : 0;
-            while (j--) {
-              ll[i++] = l;
-            }
-          } else {
-            if (j == 17) { // 3 to 10 zero length codes
-              j = 3 + readBits(3);
-            } else { // j == 18: 11 to 138 zero length codes 
-              j = 11 + readBits(7);
-            }
-            if (i + j > n) {
-              flushBuffer();
-              return 1;
-            }
-            while (j--) {
-              ll[i++] = 0;
-            }
-          }
-        }
-        /*for(j=0; j<literalCodes+distCodes; j++) {
-                //fprintf(errfp, "%d ", ll[j]);
-                if ((j&7)==7)
-                    fprintf(errfp, "\n");
-            }
-            fprintf(errfp, "\n");*/
-        // Can overwrite tree decode tree as it is not used anymore
-        len = literalTree.length;
-        for (i = 0; i < len; i++)
-          literalTree[i] = new HufNode();
-        if (CreateTree(literalTree, literalCodes, ll, 0)) {
-          flushBuffer();
-          return 1;
-        }
-        len = literalTree.length;
-        for (i = 0; i < len; i++)
-          distanceTree[i] = new HufNode();
-        var ll2 = [];
-        for (i = literalCodes; i < ll.length; i++) {
-          ll2[i - literalCodes] = ll[i];
-        }
-        if (CreateTree(distanceTree, distCodes, ll2, 0)) {
-          flushBuffer();
-          return 1;
-        }
-        if (debug)
-          document.write("<br>literalTree");
-        outer: while (1) {
-          j = DecodeValue(literalTree);
-          if (j >= 256) { // In C64: if carry set
-            j -= 256;
-            if (j === 0) {
-              // EOF
-              break;
-            }
-            j--;
-            len = readBits(cplext[j]) + cplens[j];
-
-            j = DecodeValue(distanceTree);
-            if (cpdext[j] > 8) {
-              dist = readBits(8);
-              dist |= (readBits(cpdext[j] - 8) << 8);
-            } else {
-              dist = readBits(cpdext[j]);
-            }
-            dist += cpdist[j];
-            while (len--) {
-              if (bIdx - dist < 0) {
-                break outer;
-              }
-              c = buf32k[(bIdx - dist) & 0x7fff];
-              addBuffer(c);
-            }
-          } else {
-            addBuffer(j);
-          }
-        }
-      }
-    } while (!last);
-    flushBuffer();
-
-    byteAlign();
-    return 0;
-  }
-
-  JXG.Util.Unzip.prototype.unzipFile = function(name) {
-    var i;
-    this.unzip();
-    //alert(unzipped[0][1]);
-    for (i = 0; i < unzipped.length; i++) {
-      if (unzipped[i][1] == name) {
-        return unzipped[i][0];
-      }
-    }
-  };
-
-  JXG.Util.Unzip.prototype.deflate = function() {
-    outputArr = [];
-    var tmp = [];
-    modeZIP = false;
-    DeflateLoop();
-    if (debug)
-      alert(outputArr.join(''));
-    unzipped[files] = new Array(2);
-    unzipped[files][0] = outputArr.join('');
-    unzipped[files][1] = "DEFLATE";
-    files++;
-    return unzipped;
-  };
-
-  JXG.Util.Unzip.prototype.unzip = function() {
-    //convertToByteArray(input);
-    if (debug)
-      alert(bA);
-    /*for (i=0;i<bA.length*8;i++){
-		document.write(readBit());
-		if ((i+1)%8==0)
-			document.write(" ");
-	}*/
-    /*for (i=0;i<bA.length;i++){
-		document.write(readByte()+" ");
-		if ((i+1)%8==0)
-			document.write(" ");
-	}
-	for (i=0;i<bA.length;i++){
-		document.write(bA[i]+" ");
-		if ((i+1)%16==0)
-			document.write("<br>");
-	}	
-	*/
-    //alert(bA);
-    nextFile();
-    return unzipped;
-  };
-
-  function nextFile() {
-    if (debug)
-      alert("NEXTFILE");
-    outputArr = [];
-    var tmp = [];
-    modeZIP = false;
-    tmp[0] = readByte();
-    tmp[1] = readByte();
-    if (debug)
-      alert("type: " + tmp[0] + " " + tmp[1]);
-    if (tmp[0] == parseInt("78", 16) && tmp[1] == parseInt("da", 16)) { //GZIP
-      if (debug)
-        alert("GEONExT-GZIP");
-      DeflateLoop();
-      if (debug)
-        alert(outputArr.join(''));
-      unzipped[files] = new Array(2);
-      unzipped[files][0] = outputArr.join('');
-      unzipped[files][1] = "geonext.gxt";
-      files++;
-    }
-    if (tmp[0] == parseInt("78", 16) && tmp[1] == parseInt("9c", 16)) { //ZLIB
-      if (debug)
-        alert("ZLIB");
-      DeflateLoop();
-      if (debug)
-        alert(outputArr.join(''));
-      unzipped[files] = new Array(2);
-      unzipped[files][0] = outputArr.join('');
-      unzipped[files][1] = "ZLIB";
-      files++;
-    }
-    if (tmp[0] == parseInt("1f", 16) && tmp[1] == parseInt("8b", 16)) { //GZIP
-      if (debug)
-        alert("GZIP");
-      //DeflateLoop();
-      skipdir();
-      if (debug)
-        alert(outputArr.join(''));
-      unzipped[files] = new Array(2);
-      unzipped[files][0] = outputArr.join('');
-      unzipped[files][1] = "file";
-      files++;
-    }
-    if (tmp[0] == parseInt("50", 16) && tmp[1] == parseInt("4b", 16)) { //ZIP
-      modeZIP = true;
-      tmp[2] = readByte();
-      tmp[3] = readByte();
-      if (tmp[2] == parseInt("3", 16) && tmp[3] == parseInt("4", 16)) {
-        //MODE_ZIP
-        tmp[0] = readByte();
-        tmp[1] = readByte();
-        if (debug)
-          alert("ZIP-Version: " + tmp[1] + " " + tmp[0] / 10 + "." + tmp[0] % 10);
-
-        gpflags = readByte();
-        gpflags |= (readByte() << 8);
-        if (debug)
-          alert("gpflags: " + gpflags);
-
-        var method = readByte();
-        method |= (readByte() << 8);
-        if (debug)
-          alert("method: " + method);
-
-        readByte();
-        readByte();
-        readByte();
-        readByte();
-
-        var crc = readByte();
-        crc |= (readByte() << 8);
-        crc |= (readByte() << 16);
-        crc |= (readByte() << 24);
-
-        var compSize = readByte();
-        compSize |= (readByte() << 8);
-        compSize |= (readByte() << 16);
-        compSize |= (readByte() << 24);
-
-        var size = readByte();
-        size |= (readByte() << 8);
-        size |= (readByte() << 16);
-        size |= (readByte() << 24);
-
-        if (debug)
-          alert("local CRC: " + crc + "\nlocal Size: " + size + "\nlocal CompSize: " + compSize);
-
-        var filelen = readByte();
-        filelen |= (readByte() << 8);
-
-        var extralen = readByte();
-        extralen |= (readByte() << 8);
-
-        if (debug)
-          alert("filelen " + filelen);
-        i = 0;
-        nameBuf = [];
-        var c;
-        while (filelen--) {
-          c = readByte();
-          if (c == "/" | c == ":") {
-            i = 0;
-          } else if (i < NAMEMAX - 1)
-            nameBuf[i++] = String.fromCharCode(c);
-        }
-        if (debug)
-          alert("nameBuf: " + nameBuf);
-
-        //nameBuf[i] = "\0";
-        if (!fileout)
-          fileout = nameBuf;
-
-        var i = 0;
-        while (i < extralen) {
-          c = readByte();
-          i++;
-        }
-
-        CRC = 0xffffffff;
-        SIZE = 0;
-
-        if (size === 0 && fileOut.charAt(fileout.length - 1) == "/") {
-          //skipdir
-          if (debug)
-            alert("skipdir");
-        }
-        if (method == 8) {
-          DeflateLoop();
-          if (debug)
-            alert(outputArr.join(''));
-          unzipped[files] = new Array(2);
-          unzipped[files][0] = outputArr.join('');
-          unzipped[files][1] = nameBuf.join('');
-          files++;
-          //return outputArr.join('');
-        }
-        skipdir();
-      }
-    }
-  }
-
-  function skipdir() {
-    var crc,
-      tmp = [],
-      compSize, size, os, i, c;
-
-    if ((gpflags & 8)) {
-      tmp[0] = readByte();
-      tmp[1] = readByte();
-      tmp[2] = readByte();
-      tmp[3] = readByte();
-
-      if (tmp[0] == parseInt("50", 16) &&
-        tmp[1] == parseInt("4b", 16) &&
-        tmp[2] == parseInt("07", 16) &&
-        tmp[3] == parseInt("08", 16)) {
-        crc = readByte();
-        crc |= (readByte() << 8);
-        crc |= (readByte() << 16);
-        crc |= (readByte() << 24);
-      } else {
-        crc = tmp[0] | (tmp[1] << 8) | (tmp[2] << 16) | (tmp[3] << 24);
-      }
-
-      compSize = readByte();
-      compSize |= (readByte() << 8);
-      compSize |= (readByte() << 16);
-      compSize |= (readByte() << 24);
-
-      size = readByte();
-      size |= (readByte() << 8);
-      size |= (readByte() << 16);
-      size |= (readByte() << 24);
-
-      if (debug)
-        alert("CRC:");
-    }
-
-    if (modeZIP)
-      nextFile();
-
-    tmp[0] = readByte();
-    if (tmp[0] != 8) {
-      if (debug)
-        alert("Unknown compression method!");
-      return 0;
-    }
-
-    gpflags = readByte();
-    if (debug) {
-      if ((gpflags & ~(parseInt("1f", 16))))
-        alert("Unknown flags set!");
-    }
-
-    readByte();
-    readByte();
-    readByte();
-    readByte();
-
-    readByte();
-    os = readByte();
-
-    if ((gpflags & 4)) {
-      tmp[0] = readByte();
-      tmp[2] = readByte();
-      len = tmp[0] + 256 * tmp[1];
-      if (debug)
-        alert("Extra field size: " + len);
-      for (i = 0; i < len; i++)
-        readByte();
-    }
-
-    if ((gpflags & 8)) {
-      i = 0;
-      nameBuf = [];
-      while (c = readByte()) {
-        if (c == "7" || c == ":")
-          i = 0;
-        if (i < NAMEMAX - 1)
-          nameBuf[i++] = c;
-      }
-      //nameBuf[i] = "\0";
-      if (debug)
-        alert("original file name: " + nameBuf);
-    }
-
-    if ((gpflags & 16)) {
-      while (c = readByte()) {
-        //FILE COMMENT
-      }
-    }
-
-    if ((gpflags & 2)) {
-      readByte();
-      readByte();
-    }
-
-    DeflateLoop();
-
-    crc = readByte();
-    crc |= (readByte() << 8);
-    crc |= (readByte() << 16);
-    crc |= (readByte() << 24);
-
-    size = readByte();
-    size |= (readByte() << 8);
-    size |= (readByte() << 16);
-    size |= (readByte() << 24);
-
-    if (modeZIP)
-      nextFile();
-
-  }
-
-};
-
-/**
- *  Base64 encoding / decoding
- *  {@link http://www.webtoolkit.info/}
- */
-JXG.Util.Base64 = {
-
-  // private property
-  _keyStr: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=",
-
-  // public method for encoding
-  encode: function(input) {
-    var output = [],
-      chr1, chr2, chr3, enc1, enc2, enc3, enc4,
-      i = 0;
-
-    input = JXG.Util.Base64._utf8_encode(input);
-
-    while (i < input.length) {
-
-      chr1 = input.charCodeAt(i++);
-      chr2 = input.charCodeAt(i++);
-      chr3 = input.charCodeAt(i++);
-
-      enc1 = chr1 >> 2;
-      enc2 = ((chr1 & 3) << 4) | (chr2 >> 4);
-      enc3 = ((chr2 & 15) << 2) | (chr3 >> 6);
-      enc4 = chr3 & 63;
-
-      if (isNaN(chr2)) {
-        enc3 = enc4 = 64;
-      } else if (isNaN(chr3)) {
-        enc4 = 64;
-      }
-
-      output.push([this._keyStr.charAt(enc1),
-          this._keyStr.charAt(enc2),
-          this._keyStr.charAt(enc3),
-          this._keyStr.charAt(enc4)
-      ].join(''));
-    }
-
-    return output.join('');
-  },
-
-  // public method for decoding
-  decode: function(input, utf8) {
-    var output = [],
-      chr1, chr2, chr3,
-      enc1, enc2, enc3, enc4,
-      i = 0;
-
-    input = input.replace(/[^A-Za-z0-9\+\/\=]/g, "");
-
-    while (i < input.length) {
-
-      enc1 = this._keyStr.indexOf(input.charAt(i++));
-      enc2 = this._keyStr.indexOf(input.charAt(i++));
-      enc3 = this._keyStr.indexOf(input.charAt(i++));
-      enc4 = this._keyStr.indexOf(input.charAt(i++));
-
-      chr1 = (enc1 << 2) | (enc2 >> 4);
-      chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
-      chr3 = ((enc3 & 3) << 6) | enc4;
-
-      output.push(String.fromCharCode(chr1));
-
-      if (enc3 != 64) {
-        output.push(String.fromCharCode(chr2));
-      }
-      if (enc4 != 64) {
-        output.push(String.fromCharCode(chr3));
-      }
-    }
-
-    output = output.join('');
-
-    if (utf8) {
-      output = JXG.Util.Base64._utf8_decode(output);
-    }
-    return output;
-
-  },
-
-  // private method for UTF-8 encoding
-  _utf8_encode: function(string) {
-    string = string.replace(/\r\n/g, "\n");
-    var utftext = "";
-
-    for (var n = 0; n < string.length; n++) {
-
-      var c = string.charCodeAt(n);
-
-      if (c < 128) {
-        utftext += String.fromCharCode(c);
-      } else if ((c > 127) && (c < 2048)) {
-        utftext += String.fromCharCode((c >> 6) | 192);
-        utftext += String.fromCharCode((c & 63) | 128);
-      } else {
-        utftext += String.fromCharCode((c >> 12) | 224);
-        utftext += String.fromCharCode(((c >> 6) & 63) | 128);
-        utftext += String.fromCharCode((c & 63) | 128);
-      }
-
-    }
-
-    return utftext;
-  },
-
-  // private method for UTF-8 decoding
-  _utf8_decode: function(utftext) {
-    var string = [],
-      i = 0,
-      c = 0,
-      c2 = 0,
-      c3 = 0;
-
-    while (i < utftext.length) {
-      c = utftext.charCodeAt(i);
-      if (c < 128) {
-        string.push(String.fromCharCode(c));
-        i++;
-      } else if ((c > 191) && (c < 224)) {
-        c2 = utftext.charCodeAt(i + 1);
-        string.push(String.fromCharCode(((c & 31) << 6) | (c2 & 63)));
-        i += 2;
-      } else {
-        c2 = utftext.charCodeAt(i + 1);
-        c3 = utftext.charCodeAt(i + 2);
-        string.push(String.fromCharCode(((c & 15) << 12) | ((c2 & 63) << 6) | (c3 & 63)));
-        i += 3;
-      }
-    }
-    return string.join('');
-  },
-
-  _destrip: function(stripped, wrap) {
-    var lines = [],
-      lineno, i,
-      destripped = [];
-
-    if (wrap === null)
-      wrap = 76;
-
-    stripped.replace(/ /g, "");
-    lineno = stripped.length / wrap;
-    for (i = 0; i < lineno; i++)
-      lines[i] = stripped.substr(i * wrap, wrap);
-    if (lineno != stripped.length / wrap)
-      lines[lines.length] = stripped.substr(lineno * wrap, stripped.length - (lineno * wrap));
-
-    for (i = 0; i < lines.length; i++)
-      destripped.push(lines[i]);
-    return destripped.join('\n');
-  },
-
-  decodeAsArray: function(input) {
-    var dec = this.decode(input),
-      ar = [],
-      i;
-    for (i = 0; i < dec.length; i++) {
-      ar[i] = dec.charCodeAt(i);
-    }
-    return ar;
-  },
-
-  decodeGEONExT: function(input) {
-    return decodeAsArray(destrip(input), false);
-  }
-};
-
-/**
- * @private
- */
-JXG.Util.asciiCharCodeAt = function(str, i) {
-  var c = str.charCodeAt(i);
-  if (c > 255) {
-    switch (c) {
-      case 8364:
-        c = 128;
-        break;
-      case 8218:
-        c = 130;
-        break;
-      case 402:
-        c = 131;
-        break;
-      case 8222:
-        c = 132;
-        break;
-      case 8230:
-        c = 133;
-        break;
-      case 8224:
-        c = 134;
-        break;
-      case 8225:
-        c = 135;
-        break;
-      case 710:
-        c = 136;
-        break;
-      case 8240:
-        c = 137;
-        break;
-      case 352:
-        c = 138;
-        break;
-      case 8249:
-        c = 139;
-        break;
-      case 338:
-        c = 140;
-        break;
-      case 381:
-        c = 142;
-        break;
-      case 8216:
-        c = 145;
-        break;
-      case 8217:
-        c = 146;
-        break;
-      case 8220:
-        c = 147;
-        break;
-      case 8221:
-        c = 148;
-        break;
-      case 8226:
-        c = 149;
-        break;
-      case 8211:
-        c = 150;
-        break;
-      case 8212:
-        c = 151;
-        break;
-      case 732:
-        c = 152;
-        break;
-      case 8482:
-        c = 153;
-        break;
-      case 353:
-        c = 154;
-        break;
-      case 8250:
-        c = 155;
-        break;
-      case 339:
-        c = 156;
-        break;
-      case 382:
-        c = 158;
-        break;
-      case 376:
-        c = 159;
-        break;
-      default:
-        break;
-    }
-  }
-  return c;
-};
-
-/**
- * Decoding string into utf-8
- * @param {String} string to decode
- * @return {String} utf8 decoded string
- */
-JXG.Util.utf8Decode = function(utftext) {
-  var string = [];
-  var i = 0;
-  var c = 0,
-    c1 = 0,
-    c2 = 0,
-    c3;
-  if (!JXG.exists(utftext)) return '';
-
-  while (i < utftext.length) {
-    c = utftext.charCodeAt(i);
-
-    if (c < 128) {
-      string.push(String.fromCharCode(c));
-      i++;
-    } else if ((c > 191) && (c < 224)) {
-      c2 = utftext.charCodeAt(i + 1);
-      string.push(String.fromCharCode(((c & 31) << 6) | (c2 & 63)));
-      i += 2;
-    } else {
-      c2 = utftext.charCodeAt(i + 1);
-      c3 = utftext.charCodeAt(i + 2);
-      string.push(String.fromCharCode(((c & 15) << 12) | ((c2 & 63) << 6) | (c3 & 63)));
-      i += 3;
-    }
-  }
-  return string.join('');
-};
-
-/**
- * Generate a random uuid.
- * http://www.broofa.com
- * mailto:robert@broofa.com
- *
- * Copyright (c) 2010 Robert Kieffer
- * Dual licensed under the MIT and GPL licenses.
- *
- * EXAMPLES:
- *   >>> Math.uuid()
- *   "92329D39-6F5C-4520-ABFC-AAB64544E172"
- */
-JXG.Util.genUUID = function() {
-  // Private array of chars to use
-  var chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'.split(''),
-    uuid = new Array(36),
-    rnd = 0,
-    r;
-
-  for (var i = 0; i < 36; i++) {
-    if (i == 8 || i == 13 || i == 18 || i == 23) {
-      uuid[i] = '-';
-    } else if (i == 14) {
-      uuid[i] = '4';
-    } else {
-      if (rnd <= 0x02) rnd = 0x2000000 + (Math.random() * 0x1000000) | 0;
-      r = rnd & 0xf;
-      rnd = rnd >> 4;
-      uuid[i] = chars[(i == 19) ? (r & 0x3) | 0x8 : r];
-    }
-  }
-
-  return uuid.join('');
-};
-
-
-module.exports = JXG;
+},{"./config":17,"./encoding/armor.js":42,"./enums.js":44,"./packet":54}],13:[function(require,module,exports){
+/** @license zlib.js 2012 - imaya [ https://github.com/imaya/zlib.js ] The MIT License */(function() {'use strict';var n=void 0,u=!0,aa=this;function ba(e,d){var c=e.split("."),f=aa;!(c[0]in f)&&f.execScript&&f.execScript("var "+c[0]);for(var a;c.length&&(a=c.shift());)!c.length&&d!==n?f[a]=d:f=f[a]?f[a]:f[a]={}};var C="undefined"!==typeof Uint8Array&&"undefined"!==typeof Uint16Array&&"undefined"!==typeof Uint32Array&&"undefined"!==typeof DataView;function K(e,d){this.index="number"===typeof d?d:0;this.d=0;this.buffer=e instanceof(C?Uint8Array:Array)?e:new (C?Uint8Array:Array)(32768);if(2*this.buffer.length<=this.index)throw Error("invalid index");this.buffer.length<=this.index&&ca(this)}function ca(e){var d=e.buffer,c,f=d.length,a=new (C?Uint8Array:Array)(f<<1);if(C)a.set(d);else for(c=0;c<f;++c)a[c]=d[c];return e.buffer=a}
+K.prototype.a=function(e,d,c){var f=this.buffer,a=this.index,b=this.d,k=f[a],m;c&&1<d&&(e=8<d?(L[e&255]<<24|L[e>>>8&255]<<16|L[e>>>16&255]<<8|L[e>>>24&255])>>32-d:L[e]>>8-d);if(8>d+b)k=k<<d|e,b+=d;else for(m=0;m<d;++m)k=k<<1|e>>d-m-1&1,8===++b&&(b=0,f[a++]=L[k],k=0,a===f.length&&(f=ca(this)));f[a]=k;this.buffer=f;this.d=b;this.index=a};K.prototype.finish=function(){var e=this.buffer,d=this.index,c;0<this.d&&(e[d]<<=8-this.d,e[d]=L[e[d]],d++);C?c=e.subarray(0,d):(e.length=d,c=e);return c};
+var ga=new (C?Uint8Array:Array)(256),M;for(M=0;256>M;++M){for(var R=M,S=R,ha=7,R=R>>>1;R;R>>>=1)S<<=1,S|=R&1,--ha;ga[M]=(S<<ha&255)>>>0}var L=ga;function ja(e){this.buffer=new (C?Uint16Array:Array)(2*e);this.length=0}ja.prototype.getParent=function(e){return 2*((e-2)/4|0)};ja.prototype.push=function(e,d){var c,f,a=this.buffer,b;c=this.length;a[this.length++]=d;for(a[this.length++]=e;0<c;)if(f=this.getParent(c),a[c]>a[f])b=a[c],a[c]=a[f],a[f]=b,b=a[c+1],a[c+1]=a[f+1],a[f+1]=b,c=f;else break;return this.length};
+ja.prototype.pop=function(){var e,d,c=this.buffer,f,a,b;d=c[0];e=c[1];this.length-=2;c[0]=c[this.length];c[1]=c[this.length+1];for(b=0;;){a=2*b+2;if(a>=this.length)break;a+2<this.length&&c[a+2]>c[a]&&(a+=2);if(c[a]>c[b])f=c[b],c[b]=c[a],c[a]=f,f=c[b+1],c[b+1]=c[a+1],c[a+1]=f;else break;b=a}return{index:e,value:d,length:this.length}};function ka(e,d){this.e=ma;this.f=0;this.input=C&&e instanceof Array?new Uint8Array(e):e;this.c=0;d&&(d.lazy&&(this.f=d.lazy),"number"===typeof d.compressionType&&(this.e=d.compressionType),d.outputBuffer&&(this.b=C&&d.outputBuffer instanceof Array?new Uint8Array(d.outputBuffer):d.outputBuffer),"number"===typeof d.outputIndex&&(this.c=d.outputIndex));this.b||(this.b=new (C?Uint8Array:Array)(32768))}var ma=2,T=[],U;
+for(U=0;288>U;U++)switch(u){case 143>=U:T.push([U+48,8]);break;case 255>=U:T.push([U-144+400,9]);break;case 279>=U:T.push([U-256+0,7]);break;case 287>=U:T.push([U-280+192,8]);break;default:throw"invalid literal: "+U;}
+ka.prototype.h=function(){var e,d,c,f,a=this.input;switch(this.e){case 0:c=0;for(f=a.length;c<f;){d=C?a.subarray(c,c+65535):a.slice(c,c+65535);c+=d.length;var b=d,k=c===f,m=n,g=n,p=n,v=n,x=n,l=this.b,h=this.c;if(C){for(l=new Uint8Array(this.b.buffer);l.length<=h+b.length+5;)l=new Uint8Array(l.length<<1);l.set(this.b)}m=k?1:0;l[h++]=m|0;g=b.length;p=~g+65536&65535;l[h++]=g&255;l[h++]=g>>>8&255;l[h++]=p&255;l[h++]=p>>>8&255;if(C)l.set(b,h),h+=b.length,l=l.subarray(0,h);else{v=0;for(x=b.length;v<x;++v)l[h++]=
+b[v];l.length=h}this.c=h;this.b=l}break;case 1:var q=new K(C?new Uint8Array(this.b.buffer):this.b,this.c);q.a(1,1,u);q.a(1,2,u);var t=na(this,a),w,da,z;w=0;for(da=t.length;w<da;w++)if(z=t[w],K.prototype.a.apply(q,T[z]),256<z)q.a(t[++w],t[++w],u),q.a(t[++w],5),q.a(t[++w],t[++w],u);else if(256===z)break;this.b=q.finish();this.c=this.b.length;break;case ma:var B=new K(C?new Uint8Array(this.b.buffer):this.b,this.c),ra,J,N,O,P,Ia=[16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15],W,sa,X,ta,ea,ia=Array(19),
+ua,Q,fa,y,va;ra=ma;B.a(1,1,u);B.a(ra,2,u);J=na(this,a);W=oa(this.j,15);sa=pa(W);X=oa(this.i,7);ta=pa(X);for(N=286;257<N&&0===W[N-1];N--);for(O=30;1<O&&0===X[O-1];O--);var wa=N,xa=O,F=new (C?Uint32Array:Array)(wa+xa),r,G,s,Y,E=new (C?Uint32Array:Array)(316),D,A,H=new (C?Uint8Array:Array)(19);for(r=G=0;r<wa;r++)F[G++]=W[r];for(r=0;r<xa;r++)F[G++]=X[r];if(!C){r=0;for(Y=H.length;r<Y;++r)H[r]=0}r=D=0;for(Y=F.length;r<Y;r+=G){for(G=1;r+G<Y&&F[r+G]===F[r];++G);s=G;if(0===F[r])if(3>s)for(;0<s--;)E[D++]=0,
+H[0]++;else for(;0<s;)A=138>s?s:138,A>s-3&&A<s&&(A=s-3),10>=A?(E[D++]=17,E[D++]=A-3,H[17]++):(E[D++]=18,E[D++]=A-11,H[18]++),s-=A;else if(E[D++]=F[r],H[F[r]]++,s--,3>s)for(;0<s--;)E[D++]=F[r],H[F[r]]++;else for(;0<s;)A=6>s?s:6,A>s-3&&A<s&&(A=s-3),E[D++]=16,E[D++]=A-3,H[16]++,s-=A}e=C?E.subarray(0,D):E.slice(0,D);ea=oa(H,7);for(y=0;19>y;y++)ia[y]=ea[Ia[y]];for(P=19;4<P&&0===ia[P-1];P--);ua=pa(ea);B.a(N-257,5,u);B.a(O-1,5,u);B.a(P-4,4,u);for(y=0;y<P;y++)B.a(ia[y],3,u);y=0;for(va=e.length;y<va;y++)if(Q=
+e[y],B.a(ua[Q],ea[Q],u),16<=Q){y++;switch(Q){case 16:fa=2;break;case 17:fa=3;break;case 18:fa=7;break;default:throw"invalid code: "+Q;}B.a(e[y],fa,u)}var ya=[sa,W],za=[ta,X],I,Aa,Z,la,Ba,Ca,Da,Ea;Ba=ya[0];Ca=ya[1];Da=za[0];Ea=za[1];I=0;for(Aa=J.length;I<Aa;++I)if(Z=J[I],B.a(Ba[Z],Ca[Z],u),256<Z)B.a(J[++I],J[++I],u),la=J[++I],B.a(Da[la],Ea[la],u),B.a(J[++I],J[++I],u);else if(256===Z)break;this.b=B.finish();this.c=this.b.length;break;default:throw"invalid compression type";}return this.b};
+function qa(e,d){this.length=e;this.g=d}
+var Fa=function(){function e(a){switch(u){case 3===a:return[257,a-3,0];case 4===a:return[258,a-4,0];case 5===a:return[259,a-5,0];case 6===a:return[260,a-6,0];case 7===a:return[261,a-7,0];case 8===a:return[262,a-8,0];case 9===a:return[263,a-9,0];case 10===a:return[264,a-10,0];case 12>=a:return[265,a-11,1];case 14>=a:return[266,a-13,1];case 16>=a:return[267,a-15,1];case 18>=a:return[268,a-17,1];case 22>=a:return[269,a-19,2];case 26>=a:return[270,a-23,2];case 30>=a:return[271,a-27,2];case 34>=a:return[272,
+a-31,2];case 42>=a:return[273,a-35,3];case 50>=a:return[274,a-43,3];case 58>=a:return[275,a-51,3];case 66>=a:return[276,a-59,3];case 82>=a:return[277,a-67,4];case 98>=a:return[278,a-83,4];case 114>=a:return[279,a-99,4];case 130>=a:return[280,a-115,4];case 162>=a:return[281,a-131,5];case 194>=a:return[282,a-163,5];case 226>=a:return[283,a-195,5];case 257>=a:return[284,a-227,5];case 258===a:return[285,a-258,0];default:throw"invalid length: "+a;}}var d=[],c,f;for(c=3;258>=c;c++)f=e(c),d[c]=f[2]<<24|
+f[1]<<16|f[0];return d}(),Ga=C?new Uint32Array(Fa):Fa;
+function na(e,d){function c(a,c){var b=a.g,d=[],f=0,e;e=Ga[a.length];d[f++]=e&65535;d[f++]=e>>16&255;d[f++]=e>>24;var g;switch(u){case 1===b:g=[0,b-1,0];break;case 2===b:g=[1,b-2,0];break;case 3===b:g=[2,b-3,0];break;case 4===b:g=[3,b-4,0];break;case 6>=b:g=[4,b-5,1];break;case 8>=b:g=[5,b-7,1];break;case 12>=b:g=[6,b-9,2];break;case 16>=b:g=[7,b-13,2];break;case 24>=b:g=[8,b-17,3];break;case 32>=b:g=[9,b-25,3];break;case 48>=b:g=[10,b-33,4];break;case 64>=b:g=[11,b-49,4];break;case 96>=b:g=[12,b-
+65,5];break;case 128>=b:g=[13,b-97,5];break;case 192>=b:g=[14,b-129,6];break;case 256>=b:g=[15,b-193,6];break;case 384>=b:g=[16,b-257,7];break;case 512>=b:g=[17,b-385,7];break;case 768>=b:g=[18,b-513,8];break;case 1024>=b:g=[19,b-769,8];break;case 1536>=b:g=[20,b-1025,9];break;case 2048>=b:g=[21,b-1537,9];break;case 3072>=b:g=[22,b-2049,10];break;case 4096>=b:g=[23,b-3073,10];break;case 6144>=b:g=[24,b-4097,11];break;case 8192>=b:g=[25,b-6145,11];break;case 12288>=b:g=[26,b-8193,12];break;case 16384>=
+b:g=[27,b-12289,12];break;case 24576>=b:g=[28,b-16385,13];break;case 32768>=b:g=[29,b-24577,13];break;default:throw"invalid distance";}e=g;d[f++]=e[0];d[f++]=e[1];d[f++]=e[2];var k,m;k=0;for(m=d.length;k<m;++k)l[h++]=d[k];t[d[0]]++;w[d[3]]++;q=a.length+c-1;x=null}var f,a,b,k,m,g={},p,v,x,l=C?new Uint16Array(2*d.length):[],h=0,q=0,t=new (C?Uint32Array:Array)(286),w=new (C?Uint32Array:Array)(30),da=e.f,z;if(!C){for(b=0;285>=b;)t[b++]=0;for(b=0;29>=b;)w[b++]=0}t[256]=1;f=0;for(a=d.length;f<a;++f){b=
+m=0;for(k=3;b<k&&f+b!==a;++b)m=m<<8|d[f+b];g[m]===n&&(g[m]=[]);p=g[m];if(!(0<q--)){for(;0<p.length&&32768<f-p[0];)p.shift();if(f+3>=a){x&&c(x,-1);b=0;for(k=a-f;b<k;++b)z=d[f+b],l[h++]=z,++t[z];break}0<p.length?(v=Ha(d,f,p),x?x.length<v.length?(z=d[f-1],l[h++]=z,++t[z],c(v,0)):c(x,-1):v.length<da?x=v:c(v,0)):x?c(x,-1):(z=d[f],l[h++]=z,++t[z])}p.push(f)}l[h++]=256;t[256]++;e.j=t;e.i=w;return C?l.subarray(0,h):l}
+function Ha(e,d,c){var f,a,b=0,k,m,g,p,v=e.length;m=0;p=c.length;a:for(;m<p;m++){f=c[p-m-1];k=3;if(3<b){for(g=b;3<g;g--)if(e[f+g-1]!==e[d+g-1])continue a;k=b}for(;258>k&&d+k<v&&e[f+k]===e[d+k];)++k;k>b&&(a=f,b=k);if(258===k)break}return new qa(b,d-a)}
+function oa(e,d){var c=e.length,f=new ja(572),a=new (C?Uint8Array:Array)(c),b,k,m,g,p;if(!C)for(g=0;g<c;g++)a[g]=0;for(g=0;g<c;++g)0<e[g]&&f.push(g,e[g]);b=Array(f.length/2);k=new (C?Uint32Array:Array)(f.length/2);if(1===b.length)return a[f.pop().index]=1,a;g=0;for(p=f.length/2;g<p;++g)b[g]=f.pop(),k[g]=b[g].value;m=Ja(k,k.length,d);g=0;for(p=b.length;g<p;++g)a[b[g].index]=m[g];return a}
+function Ja(e,d,c){function f(a){var b=g[a][p[a]];b===d?(f(a+1),f(a+1)):--k[b];++p[a]}var a=new (C?Uint16Array:Array)(c),b=new (C?Uint8Array:Array)(c),k=new (C?Uint8Array:Array)(d),m=Array(c),g=Array(c),p=Array(c),v=(1<<c)-d,x=1<<c-1,l,h,q,t,w;a[c-1]=d;for(h=0;h<c;++h)v<x?b[h]=0:(b[h]=1,v-=x),v<<=1,a[c-2-h]=(a[c-1-h]/2|0)+d;a[0]=b[0];m[0]=Array(a[0]);g[0]=Array(a[0]);for(h=1;h<c;++h)a[h]>2*a[h-1]+b[h]&&(a[h]=2*a[h-1]+b[h]),m[h]=Array(a[h]),g[h]=Array(a[h]);for(l=0;l<d;++l)k[l]=c;for(q=0;q<a[c-1];++q)m[c-
+1][q]=e[q],g[c-1][q]=q;for(l=0;l<c;++l)p[l]=0;1===b[c-1]&&(--k[0],++p[c-1]);for(h=c-2;0<=h;--h){t=l=0;w=p[h+1];for(q=0;q<a[h];q++)t=m[h+1][w]+m[h+1][w+1],t>e[l]?(m[h][q]=t,g[h][q]=d,w+=2):(m[h][q]=e[l],g[h][q]=l,++l);p[h]=0;1===b[h]&&f(h)}return k}
+function pa(e){var d=new (C?Uint16Array:Array)(e.length),c=[],f=[],a=0,b,k,m,g;b=0;for(k=e.length;b<k;b++)c[e[b]]=(c[e[b]]|0)+1;b=1;for(k=16;b<=k;b++)f[b]=a,a+=c[b]|0,a<<=1;b=0;for(k=e.length;b<k;b++){a=f[e[b]];f[e[b]]+=1;m=d[b]=0;for(g=e[b];m<g;m++)d[b]=d[b]<<1|a&1,a>>>=1}return d};ba("Zlib.RawDeflate",ka);ba("Zlib.RawDeflate.prototype.compress",ka.prototype.h);var Ka={NONE:0,FIXED:1,DYNAMIC:ma},V,La,$,Ma;if(Object.keys)V=Object.keys(Ka);else for(La in V=[],$=0,Ka)V[$++]=La;$=0;for(Ma=V.length;$<Ma;++$)La=V[$],ba("Zlib.RawDeflate.CompressionType."+La,Ka[La]);}).call(this); //@ sourceMappingURL=rawdeflate.min.js.map
 
 },{}],14:[function(require,module,exports){
+/** @license zlib.js 2012 - imaya [ https://github.com/imaya/zlib.js ] The MIT License */(function() {'use strict';var l=this;function p(b,e){var a=b.split("."),c=l;!(a[0]in c)&&c.execScript&&c.execScript("var "+a[0]);for(var d;a.length&&(d=a.shift());)!a.length&&void 0!==e?c[d]=e:c=c[d]?c[d]:c[d]={}};var q="undefined"!==typeof Uint8Array&&"undefined"!==typeof Uint16Array&&"undefined"!==typeof Uint32Array&&"undefined"!==typeof DataView;function t(b){var e=b.length,a=0,c=Number.POSITIVE_INFINITY,d,f,g,h,k,m,r,n,s,J;for(n=0;n<e;++n)b[n]>a&&(a=b[n]),b[n]<c&&(c=b[n]);d=1<<a;f=new (q?Uint32Array:Array)(d);g=1;h=0;for(k=2;g<=a;){for(n=0;n<e;++n)if(b[n]===g){m=0;r=h;for(s=0;s<g;++s)m=m<<1|r&1,r>>=1;J=g<<16|n;for(s=m;s<d;s+=k)f[s]=J;++h}++g;h<<=1;k<<=1}return[f,a,c]};function u(b,e){this.g=[];this.h=32768;this.c=this.f=this.d=this.k=0;this.input=q?new Uint8Array(b):b;this.l=!1;this.i=v;this.q=!1;if(e||!(e={}))e.index&&(this.d=e.index),e.bufferSize&&(this.h=e.bufferSize),e.bufferType&&(this.i=e.bufferType),e.resize&&(this.q=e.resize);switch(this.i){case w:this.a=32768;this.b=new (q?Uint8Array:Array)(32768+this.h+258);break;case v:this.a=0;this.b=new (q?Uint8Array:Array)(this.h);this.e=this.v;this.m=this.s;this.j=this.t;break;default:throw Error("invalid inflate mode");
+}}var w=0,v=1;
+u.prototype.u=function(){for(;!this.l;){var b=x(this,3);b&1&&(this.l=!0);b>>>=1;switch(b){case 0:var e=this.input,a=this.d,c=this.b,d=this.a,f=e.length,g=void 0,h=void 0,k=c.length,m=void 0;this.c=this.f=0;if(a+1>=f)throw Error("invalid uncompressed block header: LEN");g=e[a++]|e[a++]<<8;if(a+1>=f)throw Error("invalid uncompressed block header: NLEN");h=e[a++]|e[a++]<<8;if(g===~h)throw Error("invalid uncompressed block header: length verify");if(a+g>e.length)throw Error("input buffer is broken");switch(this.i){case w:for(;d+
+g>c.length;){m=k-d;g-=m;if(q)c.set(e.subarray(a,a+m),d),d+=m,a+=m;else for(;m--;)c[d++]=e[a++];this.a=d;c=this.e();d=this.a}break;case v:for(;d+g>c.length;)c=this.e({o:2});break;default:throw Error("invalid inflate mode");}if(q)c.set(e.subarray(a,a+g),d),d+=g,a+=g;else for(;g--;)c[d++]=e[a++];this.d=a;this.a=d;this.b=c;break;case 1:this.j(y,z);break;case 2:A(this);break;default:throw Error("unknown BTYPE: "+b);}}return this.m()};
+var B=[16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15],C=q?new Uint16Array(B):B,D=[3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258,258,258],E=q?new Uint16Array(D):D,F=[0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0,0,0],G=q?new Uint8Array(F):F,H=[1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577],I=q?new Uint16Array(H):H,K=[0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,
+13],L=q?new Uint8Array(K):K,M=new (q?Uint8Array:Array)(288),N,O;N=0;for(O=M.length;N<O;++N)M[N]=143>=N?8:255>=N?9:279>=N?7:8;var y=t(M),P=new (q?Uint8Array:Array)(30),Q,R;Q=0;for(R=P.length;Q<R;++Q)P[Q]=5;var z=t(P);function x(b,e){for(var a=b.f,c=b.c,d=b.input,f=b.d,g=d.length,h;c<e;){if(f>=g)throw Error("input buffer is broken");a|=d[f++]<<c;c+=8}h=a&(1<<e)-1;b.f=a>>>e;b.c=c-e;b.d=f;return h}
+function S(b,e){for(var a=b.f,c=b.c,d=b.input,f=b.d,g=d.length,h=e[0],k=e[1],m,r;c<k&&!(f>=g);)a|=d[f++]<<c,c+=8;m=h[a&(1<<k)-1];r=m>>>16;b.f=a>>r;b.c=c-r;b.d=f;return m&65535}
+function A(b){function e(a,b,c){var e,d=this.p,f,g;for(g=0;g<a;)switch(e=S(this,b),e){case 16:for(f=3+x(this,2);f--;)c[g++]=d;break;case 17:for(f=3+x(this,3);f--;)c[g++]=0;d=0;break;case 18:for(f=11+x(this,7);f--;)c[g++]=0;d=0;break;default:d=c[g++]=e}this.p=d;return c}var a=x(b,5)+257,c=x(b,5)+1,d=x(b,4)+4,f=new (q?Uint8Array:Array)(C.length),g,h,k,m;for(m=0;m<d;++m)f[C[m]]=x(b,3);if(!q){m=d;for(d=f.length;m<d;++m)f[C[m]]=0}g=t(f);h=new (q?Uint8Array:Array)(a);k=new (q?Uint8Array:Array)(c);b.p=0;
+b.j(t(e.call(b,a,g,h)),t(e.call(b,c,g,k)))}u.prototype.j=function(b,e){var a=this.b,c=this.a;this.n=b;for(var d=a.length-258,f,g,h,k;256!==(f=S(this,b));)if(256>f)c>=d&&(this.a=c,a=this.e(),c=this.a),a[c++]=f;else{g=f-257;k=E[g];0<G[g]&&(k+=x(this,G[g]));f=S(this,e);h=I[f];0<L[f]&&(h+=x(this,L[f]));c>=d&&(this.a=c,a=this.e(),c=this.a);for(;k--;)a[c]=a[c++-h]}for(;8<=this.c;)this.c-=8,this.d--;this.a=c};
+u.prototype.t=function(b,e){var a=this.b,c=this.a;this.n=b;for(var d=a.length,f,g,h,k;256!==(f=S(this,b));)if(256>f)c>=d&&(a=this.e(),d=a.length),a[c++]=f;else{g=f-257;k=E[g];0<G[g]&&(k+=x(this,G[g]));f=S(this,e);h=I[f];0<L[f]&&(h+=x(this,L[f]));c+k>d&&(a=this.e(),d=a.length);for(;k--;)a[c]=a[c++-h]}for(;8<=this.c;)this.c-=8,this.d--;this.a=c};
+u.prototype.e=function(){var b=new (q?Uint8Array:Array)(this.a-32768),e=this.a-32768,a,c,d=this.b;if(q)b.set(d.subarray(32768,b.length));else{a=0;for(c=b.length;a<c;++a)b[a]=d[a+32768]}this.g.push(b);this.k+=b.length;if(q)d.set(d.subarray(e,e+32768));else for(a=0;32768>a;++a)d[a]=d[e+a];this.a=32768;return d};
+u.prototype.v=function(b){var e,a=this.input.length/this.d+1|0,c,d,f,g=this.input,h=this.b;b&&("number"===typeof b.o&&(a=b.o),"number"===typeof b.r&&(a+=b.r));2>a?(c=(g.length-this.d)/this.n[2],f=258*(c/2)|0,d=f<h.length?h.length+f:h.length<<1):d=h.length*a;q?(e=new Uint8Array(d),e.set(h)):e=h;return this.b=e};
+u.prototype.m=function(){var b=0,e=this.b,a=this.g,c,d=new (q?Uint8Array:Array)(this.k+(this.a-32768)),f,g,h,k;if(0===a.length)return q?this.b.subarray(32768,this.a):this.b.slice(32768,this.a);f=0;for(g=a.length;f<g;++f){c=a[f];h=0;for(k=c.length;h<k;++h)d[b++]=c[h]}f=32768;for(g=this.a;f<g;++f)d[b++]=e[f];this.g=[];return this.buffer=d};
+u.prototype.s=function(){var b,e=this.a;q?this.q?(b=new Uint8Array(e),b.set(this.b.subarray(0,e))):b=this.b.subarray(0,e):(this.b.length>e&&(this.b.length=e),b=this.b);return this.buffer=b};p("Zlib.RawInflate",u);p("Zlib.RawInflate.prototype.decompress",u.prototype.u);var T={ADAPTIVE:v,BLOCK:w},U,V,W,X;if(Object.keys)U=Object.keys(T);else for(V in U=[],W=0,T)U[W++]=V;W=0;for(X=U.length;W<X;++W)V=U[W],p("Zlib.RawInflate.BufferType."+V,T[V]);}).call(this); //@ sourceMappingURL=rawinflate.min.js.map
+
+},{}],15:[function(require,module,exports){
+/** @license zlib.js 2012 - imaya [ https://github.com/imaya/zlib.js ] The MIT License */(function() {'use strict';function l(d){throw d;}var v=void 0,x=!0,aa=this;function D(d,a){var c=d.split("."),e=aa;!(c[0]in e)&&e.execScript&&e.execScript("var "+c[0]);for(var b;c.length&&(b=c.shift());)!c.length&&a!==v?e[b]=a:e=e[b]?e[b]:e[b]={}};var F="undefined"!==typeof Uint8Array&&"undefined"!==typeof Uint16Array&&"undefined"!==typeof Uint32Array&&"undefined"!==typeof DataView;function H(d,a){this.index="number"===typeof a?a:0;this.i=0;this.buffer=d instanceof(F?Uint8Array:Array)?d:new (F?Uint8Array:Array)(32768);2*this.buffer.length<=this.index&&l(Error("invalid index"));this.buffer.length<=this.index&&this.f()}H.prototype.f=function(){var d=this.buffer,a,c=d.length,e=new (F?Uint8Array:Array)(c<<1);if(F)e.set(d);else for(a=0;a<c;++a)e[a]=d[a];return this.buffer=e};
+H.prototype.d=function(d,a,c){var e=this.buffer,b=this.index,f=this.i,g=e[b],h;c&&1<a&&(d=8<a?(N[d&255]<<24|N[d>>>8&255]<<16|N[d>>>16&255]<<8|N[d>>>24&255])>>32-a:N[d]>>8-a);if(8>a+f)g=g<<a|d,f+=a;else for(h=0;h<a;++h)g=g<<1|d>>a-h-1&1,8===++f&&(f=0,e[b++]=N[g],g=0,b===e.length&&(e=this.f()));e[b]=g;this.buffer=e;this.i=f;this.index=b};H.prototype.finish=function(){var d=this.buffer,a=this.index,c;0<this.i&&(d[a]<<=8-this.i,d[a]=N[d[a]],a++);F?c=d.subarray(0,a):(d.length=a,c=d);return c};
+var fa=new (F?Uint8Array:Array)(256),O;for(O=0;256>O;++O){for(var P=O,Q=P,ga=7,P=P>>>1;P;P>>>=1)Q<<=1,Q|=P&1,--ga;fa[O]=(Q<<ga&255)>>>0}var N=fa;function ha(d){this.buffer=new (F?Uint16Array:Array)(2*d);this.length=0}ha.prototype.getParent=function(d){return 2*((d-2)/4|0)};ha.prototype.push=function(d,a){var c,e,b=this.buffer,f;c=this.length;b[this.length++]=a;for(b[this.length++]=d;0<c;)if(e=this.getParent(c),b[c]>b[e])f=b[c],b[c]=b[e],b[e]=f,f=b[c+1],b[c+1]=b[e+1],b[e+1]=f,c=e;else break;return this.length};
+ha.prototype.pop=function(){var d,a,c=this.buffer,e,b,f;a=c[0];d=c[1];this.length-=2;c[0]=c[this.length];c[1]=c[this.length+1];for(f=0;;){b=2*f+2;if(b>=this.length)break;b+2<this.length&&c[b+2]>c[b]&&(b+=2);if(c[b]>c[f])e=c[f],c[f]=c[b],c[b]=e,e=c[f+1],c[f+1]=c[b+1],c[b+1]=e;else break;f=b}return{index:d,value:a,length:this.length}};function R(d){var a=d.length,c=0,e=Number.POSITIVE_INFINITY,b,f,g,h,k,n,q,r,p,m;for(r=0;r<a;++r)d[r]>c&&(c=d[r]),d[r]<e&&(e=d[r]);b=1<<c;f=new (F?Uint32Array:Array)(b);g=1;h=0;for(k=2;g<=c;){for(r=0;r<a;++r)if(d[r]===g){n=0;q=h;for(p=0;p<g;++p)n=n<<1|q&1,q>>=1;m=g<<16|r;for(p=n;p<b;p+=k)f[p]=m;++h}++g;h<<=1;k<<=1}return[f,c,e]};function ia(d,a){this.h=ma;this.w=0;this.input=F&&d instanceof Array?new Uint8Array(d):d;this.b=0;a&&(a.lazy&&(this.w=a.lazy),"number"===typeof a.compressionType&&(this.h=a.compressionType),a.outputBuffer&&(this.a=F&&a.outputBuffer instanceof Array?new Uint8Array(a.outputBuffer):a.outputBuffer),"number"===typeof a.outputIndex&&(this.b=a.outputIndex));this.a||(this.a=new (F?Uint8Array:Array)(32768))}var ma=2,na={NONE:0,r:1,k:ma,O:3},oa=[],S;
+for(S=0;288>S;S++)switch(x){case 143>=S:oa.push([S+48,8]);break;case 255>=S:oa.push([S-144+400,9]);break;case 279>=S:oa.push([S-256+0,7]);break;case 287>=S:oa.push([S-280+192,8]);break;default:l("invalid literal: "+S)}
+ia.prototype.j=function(){var d,a,c,e,b=this.input;switch(this.h){case 0:c=0;for(e=b.length;c<e;){a=F?b.subarray(c,c+65535):b.slice(c,c+65535);c+=a.length;var f=a,g=c===e,h=v,k=v,n=v,q=v,r=v,p=this.a,m=this.b;if(F){for(p=new Uint8Array(this.a.buffer);p.length<=m+f.length+5;)p=new Uint8Array(p.length<<1);p.set(this.a)}h=g?1:0;p[m++]=h|0;k=f.length;n=~k+65536&65535;p[m++]=k&255;p[m++]=k>>>8&255;p[m++]=n&255;p[m++]=n>>>8&255;if(F)p.set(f,m),m+=f.length,p=p.subarray(0,m);else{q=0;for(r=f.length;q<r;++q)p[m++]=
+f[q];p.length=m}this.b=m;this.a=p}break;case 1:var s=new H(F?new Uint8Array(this.a.buffer):this.a,this.b);s.d(1,1,x);s.d(1,2,x);var w=pa(this,b),y,ja,A;y=0;for(ja=w.length;y<ja;y++)if(A=w[y],H.prototype.d.apply(s,oa[A]),256<A)s.d(w[++y],w[++y],x),s.d(w[++y],5),s.d(w[++y],w[++y],x);else if(256===A)break;this.a=s.finish();this.b=this.a.length;break;case ma:var C=new H(F?new Uint8Array(this.a.buffer):this.a,this.b),Ea,M,U,V,W,gb=[16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15],ba,Fa,ca,Ga,ka,ra=Array(19),
+Ha,X,la,z,Ia;Ea=ma;C.d(1,1,x);C.d(Ea,2,x);M=pa(this,b);ba=qa(this.M,15);Fa=sa(ba);ca=qa(this.L,7);Ga=sa(ca);for(U=286;257<U&&0===ba[U-1];U--);for(V=30;1<V&&0===ca[V-1];V--);var Ja=U,Ka=V,I=new (F?Uint32Array:Array)(Ja+Ka),t,J,u,da,G=new (F?Uint32Array:Array)(316),E,B,K=new (F?Uint8Array:Array)(19);for(t=J=0;t<Ja;t++)I[J++]=ba[t];for(t=0;t<Ka;t++)I[J++]=ca[t];if(!F){t=0;for(da=K.length;t<da;++t)K[t]=0}t=E=0;for(da=I.length;t<da;t+=J){for(J=1;t+J<da&&I[t+J]===I[t];++J);u=J;if(0===I[t])if(3>u)for(;0<
+u--;)G[E++]=0,K[0]++;else for(;0<u;)B=138>u?u:138,B>u-3&&B<u&&(B=u-3),10>=B?(G[E++]=17,G[E++]=B-3,K[17]++):(G[E++]=18,G[E++]=B-11,K[18]++),u-=B;else if(G[E++]=I[t],K[I[t]]++,u--,3>u)for(;0<u--;)G[E++]=I[t],K[I[t]]++;else for(;0<u;)B=6>u?u:6,B>u-3&&B<u&&(B=u-3),G[E++]=16,G[E++]=B-3,K[16]++,u-=B}d=F?G.subarray(0,E):G.slice(0,E);ka=qa(K,7);for(z=0;19>z;z++)ra[z]=ka[gb[z]];for(W=19;4<W&&0===ra[W-1];W--);Ha=sa(ka);C.d(U-257,5,x);C.d(V-1,5,x);C.d(W-4,4,x);for(z=0;z<W;z++)C.d(ra[z],3,x);z=0;for(Ia=d.length;z<
+Ia;z++)if(X=d[z],C.d(Ha[X],ka[X],x),16<=X){z++;switch(X){case 16:la=2;break;case 17:la=3;break;case 18:la=7;break;default:l("invalid code: "+X)}C.d(d[z],la,x)}var La=[Fa,ba],Ma=[Ga,ca],L,Na,ea,ua,Oa,Pa,Qa,Ra;Oa=La[0];Pa=La[1];Qa=Ma[0];Ra=Ma[1];L=0;for(Na=M.length;L<Na;++L)if(ea=M[L],C.d(Oa[ea],Pa[ea],x),256<ea)C.d(M[++L],M[++L],x),ua=M[++L],C.d(Qa[ua],Ra[ua],x),C.d(M[++L],M[++L],x);else if(256===ea)break;this.a=C.finish();this.b=this.a.length;break;default:l("invalid compression type")}return this.a};
+function ta(d,a){this.length=d;this.H=a}
+var va=function(){function d(b){switch(x){case 3===b:return[257,b-3,0];case 4===b:return[258,b-4,0];case 5===b:return[259,b-5,0];case 6===b:return[260,b-6,0];case 7===b:return[261,b-7,0];case 8===b:return[262,b-8,0];case 9===b:return[263,b-9,0];case 10===b:return[264,b-10,0];case 12>=b:return[265,b-11,1];case 14>=b:return[266,b-13,1];case 16>=b:return[267,b-15,1];case 18>=b:return[268,b-17,1];case 22>=b:return[269,b-19,2];case 26>=b:return[270,b-23,2];case 30>=b:return[271,b-27,2];case 34>=b:return[272,
+b-31,2];case 42>=b:return[273,b-35,3];case 50>=b:return[274,b-43,3];case 58>=b:return[275,b-51,3];case 66>=b:return[276,b-59,3];case 82>=b:return[277,b-67,4];case 98>=b:return[278,b-83,4];case 114>=b:return[279,b-99,4];case 130>=b:return[280,b-115,4];case 162>=b:return[281,b-131,5];case 194>=b:return[282,b-163,5];case 226>=b:return[283,b-195,5];case 257>=b:return[284,b-227,5];case 258===b:return[285,b-258,0];default:l("invalid length: "+b)}}var a=[],c,e;for(c=3;258>=c;c++)e=d(c),a[c]=e[2]<<24|e[1]<<
+16|e[0];return a}(),wa=F?new Uint32Array(va):va;
+function pa(d,a){function c(b,c){var a=b.H,d=[],e=0,f;f=wa[b.length];d[e++]=f&65535;d[e++]=f>>16&255;d[e++]=f>>24;var g;switch(x){case 1===a:g=[0,a-1,0];break;case 2===a:g=[1,a-2,0];break;case 3===a:g=[2,a-3,0];break;case 4===a:g=[3,a-4,0];break;case 6>=a:g=[4,a-5,1];break;case 8>=a:g=[5,a-7,1];break;case 12>=a:g=[6,a-9,2];break;case 16>=a:g=[7,a-13,2];break;case 24>=a:g=[8,a-17,3];break;case 32>=a:g=[9,a-25,3];break;case 48>=a:g=[10,a-33,4];break;case 64>=a:g=[11,a-49,4];break;case 96>=a:g=[12,a-
+65,5];break;case 128>=a:g=[13,a-97,5];break;case 192>=a:g=[14,a-129,6];break;case 256>=a:g=[15,a-193,6];break;case 384>=a:g=[16,a-257,7];break;case 512>=a:g=[17,a-385,7];break;case 768>=a:g=[18,a-513,8];break;case 1024>=a:g=[19,a-769,8];break;case 1536>=a:g=[20,a-1025,9];break;case 2048>=a:g=[21,a-1537,9];break;case 3072>=a:g=[22,a-2049,10];break;case 4096>=a:g=[23,a-3073,10];break;case 6144>=a:g=[24,a-4097,11];break;case 8192>=a:g=[25,a-6145,11];break;case 12288>=a:g=[26,a-8193,12];break;case 16384>=
+a:g=[27,a-12289,12];break;case 24576>=a:g=[28,a-16385,13];break;case 32768>=a:g=[29,a-24577,13];break;default:l("invalid distance")}f=g;d[e++]=f[0];d[e++]=f[1];d[e++]=f[2];var h,k;h=0;for(k=d.length;h<k;++h)p[m++]=d[h];w[d[0]]++;y[d[3]]++;s=b.length+c-1;r=null}var e,b,f,g,h,k={},n,q,r,p=F?new Uint16Array(2*a.length):[],m=0,s=0,w=new (F?Uint32Array:Array)(286),y=new (F?Uint32Array:Array)(30),ja=d.w,A;if(!F){for(f=0;285>=f;)w[f++]=0;for(f=0;29>=f;)y[f++]=0}w[256]=1;e=0;for(b=a.length;e<b;++e){f=h=0;
+for(g=3;f<g&&e+f!==b;++f)h=h<<8|a[e+f];k[h]===v&&(k[h]=[]);n=k[h];if(!(0<s--)){for(;0<n.length&&32768<e-n[0];)n.shift();if(e+3>=b){r&&c(r,-1);f=0;for(g=b-e;f<g;++f)A=a[e+f],p[m++]=A,++w[A];break}0<n.length?(q=xa(a,e,n),r?r.length<q.length?(A=a[e-1],p[m++]=A,++w[A],c(q,0)):c(r,-1):q.length<ja?r=q:c(q,0)):r?c(r,-1):(A=a[e],p[m++]=A,++w[A])}n.push(e)}p[m++]=256;w[256]++;d.M=w;d.L=y;return F?p.subarray(0,m):p}
+function xa(d,a,c){var e,b,f=0,g,h,k,n,q=d.length;h=0;n=c.length;a:for(;h<n;h++){e=c[n-h-1];g=3;if(3<f){for(k=f;3<k;k--)if(d[e+k-1]!==d[a+k-1])continue a;g=f}for(;258>g&&a+g<q&&d[e+g]===d[a+g];)++g;g>f&&(b=e,f=g);if(258===g)break}return new ta(f,a-b)}
+function qa(d,a){var c=d.length,e=new ha(572),b=new (F?Uint8Array:Array)(c),f,g,h,k,n;if(!F)for(k=0;k<c;k++)b[k]=0;for(k=0;k<c;++k)0<d[k]&&e.push(k,d[k]);f=Array(e.length/2);g=new (F?Uint32Array:Array)(e.length/2);if(1===f.length)return b[e.pop().index]=1,b;k=0;for(n=e.length/2;k<n;++k)f[k]=e.pop(),g[k]=f[k].value;h=ya(g,g.length,a);k=0;for(n=f.length;k<n;++k)b[f[k].index]=h[k];return b}
+function ya(d,a,c){function e(b){var c=k[b][n[b]];c===a?(e(b+1),e(b+1)):--g[c];++n[b]}var b=new (F?Uint16Array:Array)(c),f=new (F?Uint8Array:Array)(c),g=new (F?Uint8Array:Array)(a),h=Array(c),k=Array(c),n=Array(c),q=(1<<c)-a,r=1<<c-1,p,m,s,w,y;b[c-1]=a;for(m=0;m<c;++m)q<r?f[m]=0:(f[m]=1,q-=r),q<<=1,b[c-2-m]=(b[c-1-m]/2|0)+a;b[0]=f[0];h[0]=Array(b[0]);k[0]=Array(b[0]);for(m=1;m<c;++m)b[m]>2*b[m-1]+f[m]&&(b[m]=2*b[m-1]+f[m]),h[m]=Array(b[m]),k[m]=Array(b[m]);for(p=0;p<a;++p)g[p]=c;for(s=0;s<b[c-1];++s)h[c-
+1][s]=d[s],k[c-1][s]=s;for(p=0;p<c;++p)n[p]=0;1===f[c-1]&&(--g[0],++n[c-1]);for(m=c-2;0<=m;--m){w=p=0;y=n[m+1];for(s=0;s<b[m];s++)w=h[m+1][y]+h[m+1][y+1],w>d[p]?(h[m][s]=w,k[m][s]=a,y+=2):(h[m][s]=d[p],k[m][s]=p,++p);n[m]=0;1===f[m]&&e(m)}return g}
+function sa(d){var a=new (F?Uint16Array:Array)(d.length),c=[],e=[],b=0,f,g,h,k;f=0;for(g=d.length;f<g;f++)c[d[f]]=(c[d[f]]|0)+1;f=1;for(g=16;f<=g;f++)e[f]=b,b+=c[f]|0,b<<=1;f=0;for(g=d.length;f<g;f++){b=e[d[f]];e[d[f]]+=1;h=a[f]=0;for(k=d[f];h<k;h++)a[f]=a[f]<<1|b&1,b>>>=1}return a};function T(d,a){this.l=[];this.m=32768;this.e=this.g=this.c=this.q=0;this.input=F?new Uint8Array(d):d;this.s=!1;this.n=za;this.C=!1;if(a||!(a={}))a.index&&(this.c=a.index),a.bufferSize&&(this.m=a.bufferSize),a.bufferType&&(this.n=a.bufferType),a.resize&&(this.C=a.resize);switch(this.n){case Aa:this.b=32768;this.a=new (F?Uint8Array:Array)(32768+this.m+258);break;case za:this.b=0;this.a=new (F?Uint8Array:Array)(this.m);this.f=this.K;this.t=this.I;this.o=this.J;break;default:l(Error("invalid inflate mode"))}}
+var Aa=0,za=1,Ba={F:Aa,D:za};
+T.prototype.p=function(){for(;!this.s;){var d=Y(this,3);d&1&&(this.s=x);d>>>=1;switch(d){case 0:var a=this.input,c=this.c,e=this.a,b=this.b,f=a.length,g=v,h=v,k=e.length,n=v;this.e=this.g=0;c+1>=f&&l(Error("invalid uncompressed block header: LEN"));g=a[c++]|a[c++]<<8;c+1>=f&&l(Error("invalid uncompressed block header: NLEN"));h=a[c++]|a[c++]<<8;g===~h&&l(Error("invalid uncompressed block header: length verify"));c+g>a.length&&l(Error("input buffer is broken"));switch(this.n){case Aa:for(;b+g>e.length;){n=
+k-b;g-=n;if(F)e.set(a.subarray(c,c+n),b),b+=n,c+=n;else for(;n--;)e[b++]=a[c++];this.b=b;e=this.f();b=this.b}break;case za:for(;b+g>e.length;)e=this.f({v:2});break;default:l(Error("invalid inflate mode"))}if(F)e.set(a.subarray(c,c+g),b),b+=g,c+=g;else for(;g--;)e[b++]=a[c++];this.c=c;this.b=b;this.a=e;break;case 1:this.o(Ca,Da);break;case 2:Sa(this);break;default:l(Error("unknown BTYPE: "+d))}}return this.t()};
+var Ta=[16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15],Ua=F?new Uint16Array(Ta):Ta,Va=[3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258,258,258],Wa=F?new Uint16Array(Va):Va,Xa=[0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0,0,0],Ya=F?new Uint8Array(Xa):Xa,Za=[1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577],$a=F?new Uint16Array(Za):Za,ab=[0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,
+10,11,11,12,12,13,13],bb=F?new Uint8Array(ab):ab,cb=new (F?Uint8Array:Array)(288),Z,db;Z=0;for(db=cb.length;Z<db;++Z)cb[Z]=143>=Z?8:255>=Z?9:279>=Z?7:8;var Ca=R(cb),eb=new (F?Uint8Array:Array)(30),fb,hb;fb=0;for(hb=eb.length;fb<hb;++fb)eb[fb]=5;var Da=R(eb);function Y(d,a){for(var c=d.g,e=d.e,b=d.input,f=d.c,g=b.length,h;e<a;)f>=g&&l(Error("input buffer is broken")),c|=b[f++]<<e,e+=8;h=c&(1<<a)-1;d.g=c>>>a;d.e=e-a;d.c=f;return h}
+function ib(d,a){for(var c=d.g,e=d.e,b=d.input,f=d.c,g=b.length,h=a[0],k=a[1],n,q;e<k&&!(f>=g);)c|=b[f++]<<e,e+=8;n=h[c&(1<<k)-1];q=n>>>16;d.g=c>>q;d.e=e-q;d.c=f;return n&65535}
+function Sa(d){function a(a,b,c){var d,e=this.z,f,g;for(g=0;g<a;)switch(d=ib(this,b),d){case 16:for(f=3+Y(this,2);f--;)c[g++]=e;break;case 17:for(f=3+Y(this,3);f--;)c[g++]=0;e=0;break;case 18:for(f=11+Y(this,7);f--;)c[g++]=0;e=0;break;default:e=c[g++]=d}this.z=e;return c}var c=Y(d,5)+257,e=Y(d,5)+1,b=Y(d,4)+4,f=new (F?Uint8Array:Array)(Ua.length),g,h,k,n;for(n=0;n<b;++n)f[Ua[n]]=Y(d,3);if(!F){n=b;for(b=f.length;n<b;++n)f[Ua[n]]=0}g=R(f);h=new (F?Uint8Array:Array)(c);k=new (F?Uint8Array:Array)(e);
+d.z=0;d.o(R(a.call(d,c,g,h)),R(a.call(d,e,g,k)))}T.prototype.o=function(d,a){var c=this.a,e=this.b;this.u=d;for(var b=c.length-258,f,g,h,k;256!==(f=ib(this,d));)if(256>f)e>=b&&(this.b=e,c=this.f(),e=this.b),c[e++]=f;else{g=f-257;k=Wa[g];0<Ya[g]&&(k+=Y(this,Ya[g]));f=ib(this,a);h=$a[f];0<bb[f]&&(h+=Y(this,bb[f]));e>=b&&(this.b=e,c=this.f(),e=this.b);for(;k--;)c[e]=c[e++-h]}for(;8<=this.e;)this.e-=8,this.c--;this.b=e};
+T.prototype.J=function(d,a){var c=this.a,e=this.b;this.u=d;for(var b=c.length,f,g,h,k;256!==(f=ib(this,d));)if(256>f)e>=b&&(c=this.f(),b=c.length),c[e++]=f;else{g=f-257;k=Wa[g];0<Ya[g]&&(k+=Y(this,Ya[g]));f=ib(this,a);h=$a[f];0<bb[f]&&(h+=Y(this,bb[f]));e+k>b&&(c=this.f(),b=c.length);for(;k--;)c[e]=c[e++-h]}for(;8<=this.e;)this.e-=8,this.c--;this.b=e};
+T.prototype.f=function(){var d=new (F?Uint8Array:Array)(this.b-32768),a=this.b-32768,c,e,b=this.a;if(F)d.set(b.subarray(32768,d.length));else{c=0;for(e=d.length;c<e;++c)d[c]=b[c+32768]}this.l.push(d);this.q+=d.length;if(F)b.set(b.subarray(a,a+32768));else for(c=0;32768>c;++c)b[c]=b[a+c];this.b=32768;return b};
+T.prototype.K=function(d){var a,c=this.input.length/this.c+1|0,e,b,f,g=this.input,h=this.a;d&&("number"===typeof d.v&&(c=d.v),"number"===typeof d.G&&(c+=d.G));2>c?(e=(g.length-this.c)/this.u[2],f=258*(e/2)|0,b=f<h.length?h.length+f:h.length<<1):b=h.length*c;F?(a=new Uint8Array(b),a.set(h)):a=h;return this.a=a};
+T.prototype.t=function(){var d=0,a=this.a,c=this.l,e,b=new (F?Uint8Array:Array)(this.q+(this.b-32768)),f,g,h,k;if(0===c.length)return F?this.a.subarray(32768,this.b):this.a.slice(32768,this.b);f=0;for(g=c.length;f<g;++f){e=c[f];h=0;for(k=e.length;h<k;++h)b[d++]=e[h]}f=32768;for(g=this.b;f<g;++f)b[d++]=a[f];this.l=[];return this.buffer=b};
+T.prototype.I=function(){var d,a=this.b;F?this.C?(d=new Uint8Array(a),d.set(this.a.subarray(0,a))):d=this.a.subarray(0,a):(this.a.length>a&&(this.a.length=a),d=this.a);return this.buffer=d};function jb(d){if("string"===typeof d){var a=d.split(""),c,e;c=0;for(e=a.length;c<e;c++)a[c]=(a[c].charCodeAt(0)&255)>>>0;d=a}for(var b=1,f=0,g=d.length,h,k=0;0<g;){h=1024<g?1024:g;g-=h;do b+=d[k++],f+=b;while(--h);b%=65521;f%=65521}return(f<<16|b)>>>0};function kb(d,a){var c,e;this.input=d;this.c=0;if(a||!(a={}))a.index&&(this.c=a.index),a.verify&&(this.N=a.verify);c=d[this.c++];e=d[this.c++];switch(c&15){case lb:this.method=lb;break;default:l(Error("unsupported compression method"))}0!==((c<<8)+e)%31&&l(Error("invalid fcheck flag:"+((c<<8)+e)%31));e&32&&l(Error("fdict flag is not supported"));this.B=new T(d,{index:this.c,bufferSize:a.bufferSize,bufferType:a.bufferType,resize:a.resize})}
+kb.prototype.p=function(){var d=this.input,a,c;a=this.B.p();this.c=this.B.c;this.N&&(c=(d[this.c++]<<24|d[this.c++]<<16|d[this.c++]<<8|d[this.c++])>>>0,c!==jb(a)&&l(Error("invalid adler-32 checksum")));return a};var lb=8;function mb(d,a){this.input=d;this.a=new (F?Uint8Array:Array)(32768);this.h=$.k;var c={},e;if((a||!(a={}))&&"number"===typeof a.compressionType)this.h=a.compressionType;for(e in a)c[e]=a[e];c.outputBuffer=this.a;this.A=new ia(this.input,c)}var $=na;
+mb.prototype.j=function(){var d,a,c,e,b,f,g,h=0;g=this.a;d=lb;switch(d){case lb:a=Math.LOG2E*Math.log(32768)-8;break;default:l(Error("invalid compression method"))}c=a<<4|d;g[h++]=c;switch(d){case lb:switch(this.h){case $.NONE:b=0;break;case $.r:b=1;break;case $.k:b=2;break;default:l(Error("unsupported compression type"))}break;default:l(Error("invalid compression method"))}e=b<<6|0;g[h++]=e|31-(256*c+e)%31;f=jb(this.input);this.A.b=h;g=this.A.j();h=g.length;F&&(g=new Uint8Array(g.buffer),g.length<=
+h+4&&(this.a=new Uint8Array(g.length+4),this.a.set(g),g=this.a),g=g.subarray(0,h+4));g[h++]=f>>24&255;g[h++]=f>>16&255;g[h++]=f>>8&255;g[h++]=f&255;return g};function nb(d,a){var c,e,b,f;if(Object.keys)c=Object.keys(a);else for(e in c=[],b=0,a)c[b++]=e;b=0;for(f=c.length;b<f;++b)e=c[b],D(d+"."+e,a[e])};D("Zlib.Inflate",kb);D("Zlib.Inflate.prototype.decompress",kb.prototype.p);nb("Zlib.Inflate.BufferType",{ADAPTIVE:Ba.D,BLOCK:Ba.F});D("Zlib.Deflate",mb);D("Zlib.Deflate.compress",function(d,a){return(new mb(d,a)).j()});D("Zlib.Deflate.prototype.compress",mb.prototype.j);nb("Zlib.Deflate.CompressionType",{NONE:$.NONE,FIXED:$.r,DYNAMIC:$.k});}).call(this); //@ sourceMappingURL=zlib.min.js.map
+
+},{}],16:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 //
@@ -2169,10 +990,11 @@ module.exports = {
   compression: enums.compression.zip,
   integrity_protect: true,
   rsa_blinding: true,
+  useWebCrypto: true,
 
   show_version: false,
   show_comment: true,
-  versionstring: "OpenPGP.js v0.8.2",
+  versionstring: "OpenPGP.js v0.11.1",
   commentstring: "http://openpgpjs.org",
 
   keyserver: "keyserver.linux.it", // "pgp.mit.edu:11371"
@@ -2181,7 +1003,7 @@ module.exports = {
   debug: false
 };
 
-},{"../enums.js":42}],15:[function(require,module,exports){
+},{"../enums.js":44}],17:[function(require,module,exports){
 /**
  * @see module:config/config
  * @module config
@@ -2189,7 +1011,7 @@ module.exports = {
 module.exports = require('./config.js');
 module.exports.localStorage = require('./localStorage.js');
 
-},{"./config.js":14,"./localStorage.js":16}],16:[function(require,module,exports){
+},{"./config.js":16,"./localStorage.js":18}],18:[function(require,module,exports){
 /**
  * This object storing and retrieving configuration from HTML5 local storage.
  * @module config/localStorage
@@ -2225,7 +1047,7 @@ LocalStorage.prototype.write = function () {
   window.localStorage.setItem("config", JSON.stringify(this.config));
 };
 
-},{}],17:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 // Modified by Recurity Labs GmbH 
 
 // modified version of http://www.hanewin.net/encrypt/PGdecode.js:
@@ -2519,7 +1341,7 @@ module.exports = {
   }
 };
 
-},{"../util.js":73,"./cipher":22}],18:[function(require,module,exports){
+},{"../util.js":75,"./cipher":24}],20:[function(require,module,exports){
 /* Rijndael (AES) Encryption
  * Copyright 2005 Herbert Hanewinkel, www.haneWIN.de
  * version 1.1, check www.haneWIN.de for the latest version
@@ -3038,7 +1860,7 @@ for (var i in types) {
   module.exports[types[i]] = makeClass(types[i]);
 }
 
-},{"../../util.js":73}],19:[function(require,module,exports){
+},{"../../util.js":75}],21:[function(require,module,exports){
 /* Modified by Recurity Labs GmbH 
  * 
  * Originally written by nklein software (nklein.com)
@@ -3456,7 +2278,7 @@ module.exports = BF;
 module.exports.keySize = BF.prototype.keySize = 16;
 module.exports.blockSize = BF.prototype.blockSize = 16;
 
-},{"../../util.js":73}],20:[function(require,module,exports){
+},{"../../util.js":75}],22:[function(require,module,exports){
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -4065,7 +2887,7 @@ module.exports = cast5;
 module.exports.blockSize = cast5.prototype.blockSize = 8;
 module.exports.keySize = cast5.prototype.keySize = 16;
 
-},{"../../util.js":73}],21:[function(require,module,exports){
+},{"../../util.js":75}],23:[function(require,module,exports){
 //Paul Tero, July 2001
 //http://www.tero.co.uk/des/
 //
@@ -4476,7 +3298,7 @@ module.exports = {
   originalDes: OriginalDes
 };
 
-},{"../../util.js":73}],22:[function(require,module,exports){
+},{"../../util.js":75}],24:[function(require,module,exports){
 /**
  * @requires crypto/cipher/aes
  * @requires crypto/cipher/blowfish
@@ -4510,7 +3332,7 @@ for (var i in aes) {
   module.exports['aes' + i] = aes[i];
 }
 
-},{"./aes.js":18,"./blowfish.js":19,"./cast5.js":20,"./des.js":21,"./twofish.js":23}],23:[function(require,module,exports){
+},{"./aes.js":20,"./blowfish.js":21,"./cast5.js":22,"./des.js":23,"./twofish.js":25}],25:[function(require,module,exports){
 /* Modified by Recurity Labs GmbH 
  * 
  * Cipher.js
@@ -4881,7 +3703,7 @@ module.exports = TF;
 module.exports.keySize = TF.prototype.keySize = 32;
 module.exports.blockSize = TF.prototype.blockSize = 16;
 
-},{"../../util.js":73}],24:[function(require,module,exports){
+},{"../../util.js":75}],26:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 //
@@ -5113,7 +3935,7 @@ module.exports = {
   }
 };
 
-},{"../type/mpi.js":71,"./cipher":22,"./public_key":35,"./random.js":38}],25:[function(require,module,exports){
+},{"../type/mpi.js":73,"./cipher":24,"./public_key":37,"./random.js":40}],27:[function(require,module,exports){
 /**
  * Secure Hash Algorithm with 256-bit digest (SHA-256) implementation.
  *
@@ -5404,7 +4226,7 @@ sha256.create = function() {
 
   return md;
 };
-},{"./forge_util.js":26}],26:[function(require,module,exports){
+},{"./forge_util.js":28}],28:[function(require,module,exports){
 /**
  * Utility functions for web applications.
  *
@@ -6242,7 +5064,7 @@ util.decodeUtf8 = function(str) {
   return decodeURIComponent(escape(str));
 };
 
-},{}],27:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 /**
  * @requires crypto/hash/sha
  * @module crypto/hash
@@ -6335,7 +5157,7 @@ module.exports = {
   }
 };
 
-},{"./forge_sha256.js":25,"./md5.js":28,"./ripe-md.js":29,"./sha.js":30}],28:[function(require,module,exports){
+},{"./forge_sha256.js":27,"./md5.js":30,"./ripe-md.js":31,"./sha.js":32}],30:[function(require,module,exports){
 /**
  * A fast MD5 JavaScript implementation
  * Copyright (c) 2012 Joseph Myers
@@ -6554,7 +5376,7 @@ if (md5('hello') != '5d41402abc4b2a76b9719d911017c592') {
   }
 }
 
-},{"../../util.js":73}],29:[function(require,module,exports){
+},{"../../util.js":75}],31:[function(require,module,exports){
 /*
  * CryptoMX Tools
  * Copyright (C) 2004 - 2006 Derek Buitenhuis
@@ -6853,7 +5675,7 @@ function RMDstring(message) {
 
 module.exports = RMDstring;
 
-},{}],30:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 /* A JavaScript implementation of the SHA family of hashes, as defined in FIPS 
  * PUB 180-2 as well as the corresponding HMAC implementation as defined in
  * FIPS PUB 198a
@@ -7980,7 +6802,7 @@ module.exports = {
   }
 };
 
-},{}],31:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 /**
  * @see module:crypto/crypto
  * @module crypto
@@ -8007,7 +6829,7 @@ var crypto = require('./crypto.js');
 for (var i in crypto)
   module.exports[i] = crypto[i];
 
-},{"./cfb.js":17,"./cipher":22,"./crypto.js":24,"./hash":27,"./pkcs1.js":32,"./public_key":35,"./random.js":38,"./signature.js":39}],32:[function(require,module,exports){
+},{"./cfb.js":19,"./cipher":24,"./crypto.js":26,"./hash":29,"./pkcs1.js":34,"./public_key":37,"./random.js":40,"./signature.js":41}],34:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -8180,7 +7002,7 @@ module.exports = {
   }
 };
 
-},{"../util.js":73,"./crypto.js":24,"./hash":27,"./public_key/jsbn.js":36,"./random.js":38}],33:[function(require,module,exports){
+},{"../util.js":75,"./crypto.js":26,"./hash":29,"./public_key/jsbn.js":38,"./random.js":40}],35:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -8285,14 +7107,18 @@ function DSA() {
   function verify(hashalgo, s1, s2, m, p, q, g, y) {
     var hashed_data = util.getLeftNBits(hashModule.digest(hashalgo, m), q.bitLength());
     var hash = new BigInteger(util.hexstrdump(hashed_data), 16);
-    if (BigInteger.ZERO.compareTo(s1) > 0 ||
-      s1.compareTo(q) > 0 ||
-      BigInteger.ZERO.compareTo(s2) > 0 ||
-      s2.compareTo(q) > 0) {
+    if (BigInteger.ZERO.compareTo(s1) >= 0 ||
+      s1.compareTo(q) >= 0 ||
+      BigInteger.ZERO.compareTo(s2) >= 0 ||
+      s2.compareTo(q) >= 0) {
       util.print_debug("invalid DSA Signature");
       return null;
     }
     var w = s2.modInverse(q);
+    if (BigInteger.ZERO.compareTo(w) == 0) {
+      util.print_debug("invalid DSA Signature");
+      return null;
+    }
     var u1 = hash.multiply(w).mod(q);
     var u2 = s1.multiply(w).mod(q);
     return g.modPow(u1, p).multiply(y.modPow(u2, p)).mod(p).mod(q);
@@ -8364,7 +7190,7 @@ function DSA() {
 
 module.exports = DSA;
 
-},{"../../config":15,"../../util.js":73,"../hash":27,"../random.js":38,"./jsbn.js":36}],34:[function(require,module,exports){
+},{"../../config":17,"../../util.js":75,"../hash":29,"../random.js":40,"./jsbn.js":38}],36:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -8425,7 +7251,7 @@ function Elgamal() {
 
 module.exports = Elgamal;
 
-},{"../../util.js":73,"../random.js":38,"./jsbn.js":36}],35:[function(require,module,exports){
+},{"../../util.js":75,"../random.js":40,"./jsbn.js":38}],37:[function(require,module,exports){
 /**
  * @requires crypto/public_key/dsa
  * @requires crypto/public_key/elgamal
@@ -8441,7 +7267,7 @@ module.exports = {
   dsa: require('./dsa.js')
 };
 
-},{"./dsa.js":33,"./elgamal.js":34,"./rsa.js":37}],36:[function(require,module,exports){
+},{"./dsa.js":35,"./elgamal.js":36,"./rsa.js":39}],38:[function(require,module,exports){
 /*
  * Copyright (c) 2003-2005  Tom Wu (tjw@cs.Stanford.EDU) 
  * All Rights Reserved.
@@ -10154,7 +8980,7 @@ BigInteger.prototype.toMPI = bnToMPI;
 // JSBN-specific extension
 BigInteger.prototype.square = bnSquare;
 
-},{"../../util.js":73,"./jsbn.js":36}],37:[function(require,module,exports){
+},{"../../util.js":75,"./jsbn.js":38}],39:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 //
@@ -10292,7 +9118,6 @@ function RSA() {
 
   function generate(B, E) {
     var webCrypto = util.getWebCrypto();
-    var promise;
 
     //
     // Native RSA keygen using Web Crypto
@@ -10301,22 +9126,41 @@ function RSA() {
     if (webCrypto) {
       var Euint32 = new Uint32Array([parseInt(E, 16)]); // get integer of exponent
       var Euint8 = new Uint8Array(Euint32.buffer); // get bytes of exponent
-      var keyGenOpt = {
-        name: 'RSASSA-PKCS1-v1_5',
-        modulusLength: B, // the specified keysize in bits
-        publicExponent: Euint8.subarray(0, 3), // take three bytes (max 65537)
-        hash: {
-          name: 'SHA-1' // not required for actual RSA keys, but for crypto api 'sign' and 'verify'
-        }
-      };
-      promise = webCrypto.generateKey(keyGenOpt, true, ['sign', 'verify']);
-      return promise.then(exportKey).then(decodeKey);
+      var keyGenOpt;
+
+      if (window.crypto.subtle) {
+        // current standard spec
+        keyGenOpt = {
+          name: 'RSASSA-PKCS1-v1_5',
+          modulusLength: B, // the specified keysize in bits
+          publicExponent: Euint8.subarray(0, 3), // take three bytes (max 65537)
+          hash: {
+            name: 'SHA-1' // not required for actual RSA keys, but for crypto api 'sign' and 'verify'
+          }
+        };
+        return webCrypto.generateKey(keyGenOpt, true, ['sign', 'verify']).then(exportKey).then(decodeKey);
+
+      } else if (window.crypto.webkitSubtle) {
+        // outdated spec implemented by Webkit
+        keyGenOpt = {
+          name: 'RSA-OAEP',
+          modulusLength: B, // the specified keysize in bits
+          publicExponent: Euint8.subarray(0, 3), // take three bytes (max 65537)
+        };
+        return webCrypto.generateKey(keyGenOpt, true, ['encrypt', 'decrypt']).then(exportKey).then(function(key) {
+          if (key instanceof ArrayBuffer) {
+            // parse raw ArrayBuffer bytes to jwk/json (WebKit/Safari quirk)
+            return decodeKey(JSON.parse(String.fromCharCode.apply(null, new Uint8Array(key))));
+          }
+          return decodeKey(key);
+        });
+      }
     }
 
-    function exportKey(key) {
+    function exportKey(keypair) {
       // export the generated keys as JsonWebKey (JWK)
       // https://tools.ietf.org/html/draft-ietf-jose-json-web-key-33
-      return webCrypto.exportKey('jwk', key.privateKey);
+      return webCrypto.exportKey('jwk', keypair.privateKey);
     }
 
     function decodeKey(jwk) {
@@ -10342,7 +9186,7 @@ function RSA() {
     // JS code
     //
 
-    promise = new Promise(function(resolve) {
+    return new Promise(function(resolve) {
       var key = new keyObject();
       var rng = new SecureRandom();
       var qs = B >> 1;
@@ -10380,8 +9224,6 @@ function RSA() {
 
       resolve(key);
     });
-
-    return promise;
   }
 
   this.encrypt = encrypt;
@@ -10394,7 +9236,7 @@ function RSA() {
 
 module.exports = RSA;
 
-},{"../../config":15,"../../util.js":73,"../random.js":38,"./jsbn.js":36}],38:[function(require,module,exports){
+},{"../../config":17,"../../util.js":75,"../random.js":40,"./jsbn.js":38}],40:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -10521,7 +9363,7 @@ module.exports = {
 
     var range = max.subtract(min);
     var r = this.getRandomBigInteger(range.bitLength());
-    while (r > range) {
+    while (r.compareTo(range) > 0) {
       r = this.getRandomBigInteger(range.bitLength());
     }
     return min.add(r);
@@ -10589,7 +9431,7 @@ RandomBuffer.prototype.get = function(buf) {
   }
 };
 
-},{"../type/mpi.js":71,"crypto":false}],39:[function(require,module,exports){
+},{"../type/mpi.js":73,"crypto":false}],41:[function(require,module,exports){
 /**
  * @requires crypto/hash
  * @requires crypto/pkcs1
@@ -10699,7 +9541,7 @@ module.exports = {
   }
 };
 
-},{"./hash":27,"./pkcs1.js":32,"./public_key":35}],40:[function(require,module,exports){
+},{"./hash":29,"./pkcs1.js":34,"./public_key":37}],42:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 //
@@ -10745,7 +9587,7 @@ function getType(text) {
   var header = text.match(reHeader);
 
   if (!header) {
-    throw new Error('Unknow ASCII armor type');
+    throw new Error('Unknown ASCII armor type');
   }
 
   // BEGIN PGP MESSAGE, PART X/Y
@@ -11109,7 +9951,7 @@ module.exports = {
   decode: dearmor
 };
 
-},{"../config":15,"../enums.js":42,"./base64.js":41}],41:[function(require,module,exports){
+},{"../config":17,"../enums.js":44,"./base64.js":43}],43:[function(require,module,exports){
 /* OpenPGP radix-64/base64 string encoding/decoding
  * Copyright 2005 Herbert Hanewinkel, www.haneWIN.de
  * version 1.0, check www.haneWIN.de for the latest version
@@ -11212,7 +10054,7 @@ module.exports = {
   decode: r2s
 };
 
-},{}],42:[function(require,module,exports){
+},{}],44:[function(require,module,exports){
 'use strict';
 
 /**
@@ -11533,7 +10375,7 @@ module.exports = {
   }
 };
 
-},{}],43:[function(require,module,exports){
+},{}],45:[function(require,module,exports){
 'use strict';
 
 module.exports = require('./openpgp.js');
@@ -11608,7 +10450,7 @@ module.exports.Keyring = require('./keyring');
  */
 module.exports.AsyncProxy = require('./worker/async_proxy.js');
 
-},{"./cleartext.js":12,"./config/config.js":14,"./crypto":31,"./encoding/armor.js":40,"./enums.js":42,"./key.js":44,"./keyring":45,"./message.js":48,"./openpgp.js":49,"./packet":52,"./type/keyid.js":70,"./type/mpi.js":71,"./type/s2k.js":72,"./util.js":73,"./worker/async_proxy.js":74}],44:[function(require,module,exports){
+},{"./cleartext.js":12,"./config/config.js":16,"./crypto":33,"./encoding/armor.js":42,"./enums.js":44,"./key.js":46,"./keyring":47,"./message.js":50,"./openpgp.js":51,"./packet":54,"./type/keyid.js":72,"./type/mpi.js":73,"./type/s2k.js":74,"./util.js":75,"./worker/async_proxy.js":76}],46:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 //
@@ -11889,21 +10731,21 @@ Key.prototype.armor = function() {
 };
 
 /**
- * Returns first key packet that is available for signing
+ * Returns first key packet or key packet by given keyId that is available for signing or signature verification
+ * @param  {module:type/keyid} keyId, optional
  * @return {(module:packet/secret_subkey|module:packet/secret_key|null)} key packet or null if no signing key has been found
  */
-Key.prototype.getSigningKeyPacket = function() {
-  if (this.isPublic()) {
-    throw new Error('Need private key for signing');
-  }
+Key.prototype.getSigningKeyPacket = function(keyId) {
   var primaryUser = this.getPrimaryUser();
   if (primaryUser &&
-      isValidSigningKeyPacket(this.primaryKey, primaryUser.selfCertificate)) {
+      isValidSigningKeyPacket(this.primaryKey, primaryUser.selfCertificate) &&
+      (!keyId || this.primaryKey.getKeyId().equals(keyId))) {
     return this.primaryKey;
   }
   if (this.subKeys) {
     for (var i = 0; i < this.subKeys.length; i++) {
-      if (this.subKeys[i].isValidSigningKey(this.primaryKey)) {
+      if (this.subKeys[i].isValidSigningKey(this.primaryKey) &&
+          (!keyId || this.subKeys[i].subKey.getKeyId().equals(keyId))) {
         return this.subKeys[i].subKey;
       }
     }
@@ -12655,7 +11497,7 @@ exports.readArmored = readArmored;
 exports.generate = generate;
 exports.getPreferredSymAlgo = getPreferredSymAlgo;
 
-},{"./config":15,"./encoding/armor.js":40,"./enums.js":42,"./packet":52,"./util":73}],45:[function(require,module,exports){
+},{"./config":17,"./encoding/armor.js":42,"./enums.js":44,"./packet":54,"./util":75}],47:[function(require,module,exports){
 /**
  * @see module:keyring/keyring
  * @module keyring
@@ -12663,7 +11505,7 @@ exports.getPreferredSymAlgo = getPreferredSymAlgo;
 module.exports = require('./keyring.js');
 module.exports.localstore = require('./localstore.js');
 
-},{"./keyring.js":46,"./localstore.js":47}],46:[function(require,module,exports){
+},{"./keyring.js":48,"./localstore.js":49}],48:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -12789,12 +11631,10 @@ KeyArray.prototype.getForAddress = function(email) {
  * @return {Boolean} True if the email address is defined in the specified key
  */
 function emailCheck(email, key) {
-  email = email.toLowerCase();
+  var emailRegex = new RegExp('<' + email.toLowerCase() + '>');
   var keyEmails = key.getUserIds();
   for (var i = 0; i < keyEmails.length; i++) {
-    //we need to get just the email from the userid key
-    keyEmail = keyEmails[i].split('<')[1].split('>')[0].trim().toLowerCase();
-    if (keyEmail == email) {
+    if (emailRegex.test(keyEmails[i].toLowerCase())) {
       return true;
     }
   }
@@ -12885,7 +11725,7 @@ KeyArray.prototype.removeForId = function (keyId) {
   return null;
 };
 
-},{"../enums.js":42,"../key.js":44,"../util.js":73,"./localstore.js":47}],47:[function(require,module,exports){
+},{"../enums.js":44,"../key.js":46,"../util.js":75,"./localstore.js":49}],49:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -12991,7 +11831,7 @@ function storeKeys(storage, itemname, keys) {
   storage.setItem(itemname, JSON.stringify(armoredKeys));
 }
 
-},{"../config":15,"../key.js":44,"../util.js":73,"node-localstorage":false}],48:[function(require,module,exports){
+},{"../config":17,"../key.js":46,"../util.js":75,"node-localstorage":false}],50:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 //
@@ -13188,6 +12028,9 @@ Message.prototype.sign = function(privateKeys) {
                       enums.signature.binary : enums.signature.text;
   var i;
   for (i = 0; i < privateKeys.length; i++) {
+    if (privateKeys[i].isPublic()) {
+      throw new Error('Need private key for signing');
+    }
     var onePassSig = new packet.OnePassSignature();
     onePassSig.type = signatureType;
     //TODO get preferred hashg algo from key signature
@@ -13230,7 +12073,7 @@ Message.prototype.verify = function(keys) {
   for (var i = 0; i < signatureList.length; i++) {
     var keyPacket = null;
     for (var j = 0; j < keys.length; j++) {
-      keyPacket = keys[j].getKeyPacket([signatureList[i].issuerKeyId]);
+      keyPacket = keys[j].getSigningKeyPacket(signatureList[i].issuerKeyId);
       if (keyPacket) {
         break;
       }
@@ -13339,7 +12182,7 @@ exports.readSignedContent = readSignedContent;
 exports.fromText = fromText;
 exports.fromBinary = fromBinary;
 
-},{"./config":15,"./crypto":31,"./encoding/armor.js":40,"./enums.js":42,"./key.js":44,"./packet":52}],49:[function(require,module,exports){
+},{"./config":17,"./crypto":33,"./encoding/armor.js":42,"./enums.js":44,"./key.js":46,"./packet":54}],51:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 //
@@ -13388,14 +12231,32 @@ if (typeof Promise === 'undefined') {
   require('es6-promise').polyfill();
 }
 
-var asyncProxy; // instance of the asyncproxy
+var asyncProxy = null; // instance of the asyncproxy
 
 /**
  * Set the path for the web worker script and create an instance of the async proxy
- * @param {String} path relative path to the worker scripts
+ * @param {String} path relative path to the worker scripts, default: 'openpgp.worker.js'
+ * @param {Object} [options.worker=Object] alternative to path parameter:
+ *                                         web worker initialized with 'openpgp.worker.js'
+ * @return {Boolean} true if worker created successfully
  */
-function initWorker(path) {
-  asyncProxy = new AsyncProxy(path);
+function initWorker(path, options) {
+  if (options && options.worker || typeof window !== 'undefined' && window.Worker) {
+    options = options || {};
+    options.config = this.config;
+    asyncProxy = new AsyncProxy(path, options);
+    return true;
+  } else {
+    return false;
+  }
+}
+
+/**
+ * Returns a reference to the async proxy if the worker was initialized with openpgp.initWorker()
+ * @return {module:worker/async_proxy~AsyncProxy|null} the async proxy or null if not initialized
+ */
+function getWorker() {
+  return asyncProxy;
 }
 
 /**
@@ -13410,7 +12271,7 @@ function encryptMessage(keys, text) {
     keys = [keys];
   }
 
-  if (useWorker()) {
+  if (asyncProxy) {
     return asyncProxy.encryptMessage(keys, text);
   }
 
@@ -13437,7 +12298,7 @@ function signAndEncryptMessage(publicKeys, privateKey, text) {
     publicKeys = [publicKeys];
   }
 
-  if (useWorker()) {
+  if (asyncProxy) {
     return asyncProxy.signAndEncryptMessage(publicKeys, privateKey, text);
   }
 
@@ -13461,7 +12322,7 @@ function signAndEncryptMessage(publicKeys, privateKey, text) {
  * @static
  */
 function decryptMessage(privateKey, msg) {
-  if (useWorker()) {
+  if (asyncProxy) {
     return asyncProxy.decryptMessage(privateKey, msg);
   }
 
@@ -13487,7 +12348,7 @@ function decryptAndVerifyMessage(privateKey, publicKeys, msg) {
     publicKeys = [publicKeys];
   }
 
-  if (useWorker()) {
+  if (asyncProxy) {
     return asyncProxy.decryptAndVerifyMessage(privateKey, publicKeys, msg);
   }
 
@@ -13516,7 +12377,7 @@ function signClearMessage(privateKeys, text) {
     privateKeys = [privateKeys];
   }
 
-  if (useWorker()) {
+  if (asyncProxy) {
     return asyncProxy.signClearMessage(privateKeys, text);
   }
 
@@ -13541,7 +12402,7 @@ function verifyClearSignedMessage(publicKeys, msg) {
     publicKeys = [publicKeys];
   }
 
-  if (useWorker()) {
+  if (asyncProxy) {
     return asyncProxy.verifyClearSignedMessage(publicKeys, msg);
   }
 
@@ -13571,7 +12432,7 @@ function verifyClearSignedMessage(publicKeys, msg) {
  */
 function generateKeyPair(options) {
   // use web worker if web crypto apis are not supported
-  if (!util.getWebCrypto() && useWorker()) {
+  if (!util.getWebCrypto() && asyncProxy) {
     return asyncProxy.generateKeyPair(options);
   }
 
@@ -13600,22 +12461,6 @@ function generateKeyPair(options) {
 //
 // helper functions
 //
-
-/**
- * Are we in a browser and do we support worker?
- */
-function useWorker() {
-  if (typeof window === 'undefined' || !window.Worker) {
-    return false;
-  }
-
-  if (!asyncProxy) {
-    console.log('You need to set the worker path!');
-    return false;
-  }
-
-  return true;
-}
 
 /**
  * Command pattern that wraps synchronous code into a promise
@@ -13649,6 +12494,7 @@ function onError(message, error) {
 }
 
 exports.initWorker = initWorker;
+exports.getWorker = getWorker;
 exports.encryptMessage = encryptMessage;
 exports.signAndEncryptMessage = signAndEncryptMessage;
 exports.decryptMessage = decryptMessage;
@@ -13656,7 +12502,7 @@ exports.decryptAndVerifyMessage = decryptAndVerifyMessage;
 exports.signClearMessage = signClearMessage;
 exports.verifyClearSignedMessage = verifyClearSignedMessage;
 exports.generateKeyPair = generateKeyPair;
-},{"./cleartext.js":12,"./encoding/armor.js":40,"./enums.js":42,"./key.js":44,"./message.js":48,"./util":73,"./worker/async_proxy.js":74,"es6-promise":2}],50:[function(require,module,exports){
+},{"./cleartext.js":12,"./encoding/armor.js":42,"./enums.js":44,"./key.js":46,"./message.js":50,"./util":75,"./worker/async_proxy.js":76,"es6-promise":2}],52:[function(require,module,exports){
 /**
  * @requires enums
  * @module packet
@@ -13736,7 +12582,7 @@ function packetClassFromTagName(tag) {
   return tag.substr(0, 1).toUpperCase() + tag.substr(1);
 }
 
-},{"../enums.js":42,"./compressed.js":51,"./literal.js":53,"./marker.js":54,"./one_pass_signature.js":55,"./public_key.js":58,"./public_key_encrypted_session_key.js":59,"./public_subkey.js":60,"./secret_key.js":61,"./secret_subkey.js":62,"./signature.js":63,"./sym_encrypted_integrity_protected.js":64,"./sym_encrypted_session_key.js":65,"./symmetrically_encrypted.js":66,"./trust.js":67,"./user_attribute.js":68,"./userid.js":69}],51:[function(require,module,exports){
+},{"../enums.js":44,"./compressed.js":53,"./literal.js":55,"./marker.js":56,"./one_pass_signature.js":57,"./public_key.js":60,"./public_key_encrypted_session_key.js":61,"./public_subkey.js":62,"./secret_key.js":63,"./secret_subkey.js":64,"./signature.js":65,"./sym_encrypted_integrity_protected.js":66,"./sym_encrypted_session_key.js":67,"./symmetrically_encrypted.js":68,"./trust.js":69,"./user_attribute.js":70,"./userid.js":71}],53:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -13760,17 +12606,21 @@ function packetClassFromTagName(tag) {
  * {@link http://tools.ietf.org/html/rfc4880#section-5.6|RFC4880 5.6}: The Compressed Data packet contains compressed data.  Typically,
  * this packet is found as the contents of an encrypted packet, or following
  * a Signature or One-Pass Signature packet, and contains a literal data packet.
- * @requires compression/jxg
- * @requires encoding/base64
+ * @requires compression/zlib
+ * @requires compression/rawinflate
+ * @requires compression/rawdeflate
  * @requires enums
+ * @requires util
  * @module packet/compressed
  */
 
 module.exports = Compressed;
 
 var enums = require('../enums.js'),
-  JXG = require('../compression/jxg.js'),
-  base64 = require('../encoding/base64.js');
+  util = require('../util.js'),
+  Zlib = require('../compression/zlib.min.js'),
+  RawInflate = require('../compression/rawinflate.min.js'),
+  RawDeflate = require('../compression/rawdeflate.min.js');
 
 /**
  * @constructor
@@ -13790,7 +12640,7 @@ function Compressed() {
    * Compression algorithm
    * @type {compression}
    */
-  this.algorithm = 'uncompressed';
+  this.algorithm = 'zip';
 
   /**
    * Compressed packet data
@@ -13832,7 +12682,7 @@ Compressed.prototype.write = function () {
  * read by read_packet
  */
 Compressed.prototype.decompress = function () {
-  var decompressed, compdata, radix;
+  var decompressed;
 
   switch (this.algorithm) {
     case 'uncompressed':
@@ -13840,35 +12690,13 @@ Compressed.prototype.decompress = function () {
       break;
 
     case 'zip':
-      compData = this.compressed;
-
-      radix = base64.encode(compData).replace(/\n/g, "");
-      // no header in this case, directly call deflate
-      var jxg_obj = new JXG.Util.Unzip(JXG.Util.Base64.decodeAsArray(radix));
-
-      decompressed = unescape(jxg_obj.deflate()[0][0]);
+      var inflate = new RawInflate.Zlib.RawInflate(util.str2Uint8Array(this.compressed));
+      decompressed = util.Uint8Array2str(inflate.decompress());
       break;
 
     case 'zlib':
-      //RFC 1950. Bits 0-3 Compression Method
-      var compressionMethod = this.compressed.charCodeAt(0) % 0x10;
-
-      //Bits 4-7 RFC 1950 are LZ77 Window. Generally this value is 7 == 32k window size.
-      // 2nd Byte in RFC 1950 is for "FLAGs" Allows for a Dictionary
-      // (how is this defined). Basic checksum, and compression level.
-
-      if (compressionMethod == 8) { //CM 8 is for DEFLATE, RFC 1951
-        // remove 4 bytes ADLER32 checksum from the end
-        compData = this.compressed.substring(0, this.compressed.length - 4);
-        radix = base64.encode(compData).replace(/\n/g, "");
-        //TODO check ADLER32 checksum
-        decompressed = JXG.decompress(radix);
-        break;
-
-      } else {
-        throw new Error("Compression algorithm ZLIB only supports " +
-          "DEFLATE compression method.");
-      }
+      var inflate = new Zlib.Zlib.Inflate(util.str2Uint8Array(this.compressed));
+      decompressed = util.Uint8Array2str(inflate.decompress());
       break;
 
     case 'bzip2':
@@ -13886,21 +12714,27 @@ Compressed.prototype.decompress = function () {
  * Compress the packet data (member decompressedData)
  */
 Compressed.prototype.compress = function () {
+  var uncompressed, deflate;
+  uncompressed = this.packets.write();
+
   switch (this.algorithm) {
 
     case 'uncompressed':
       // - Uncompressed
-      this.compressed = this.packets.write();
+      this.compressed = uncompressed;
       break;
 
     case 'zip':
       // - ZIP [RFC1951]
-      throw new Error("Compression algorithm ZIP [RFC1951] is not implemented.");
+      deflate = new RawDeflate.Zlib.RawDeflate(util.str2Uint8Array(uncompressed));
+      this.compressed = util.Uint8Array2str(deflate.compress());
+      break;
 
     case 'zlib':
       // - ZLIB [RFC1950]
-      // TODO: need to implement this
-      throw new Error("Compression algorithm ZLIB [RFC1950] is not implemented.");
+      deflate = new Zlib.Zlib.Deflate(util.str2Uint8Array(uncompressed));
+      this.compressed = util.Uint8Array2str(deflate.compress());
+      break;
 
     case 'bzip2':
       //  - BZip2 [BZ2]
@@ -13912,7 +12746,7 @@ Compressed.prototype.compress = function () {
   }
 };
 
-},{"../compression/jxg.js":13,"../encoding/base64.js":41,"../enums.js":42}],52:[function(require,module,exports){
+},{"../compression/rawdeflate.min.js":13,"../compression/rawinflate.min.js":14,"../compression/zlib.min.js":15,"../enums.js":44,"../util.js":75}],54:[function(require,module,exports){
 var enums = require('../enums.js');
 
 module.exports = {
@@ -13928,7 +12762,7 @@ var packets = require('./all_packets.js');
 for (var i in packets)
   module.exports[i] = packets[i];
 
-},{"../enums.js":42,"./all_packets.js":50,"./packetlist.js":57}],53:[function(require,module,exports){
+},{"../enums.js":44,"./all_packets.js":52,"./packetlist.js":59}],55:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -14080,7 +12914,7 @@ Literal.prototype.write = function () {
   return result;
 };
 
-},{"../enums.js":42,"../util.js":73}],54:[function(require,module,exports){
+},{"../enums.js":44,"../util.js":75}],56:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -14143,7 +12977,7 @@ Marker.prototype.read = function (bytes) {
   return false;
 };
 
-},{"../enums.js":42}],55:[function(require,module,exports){
+},{"../enums.js":44}],57:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -14249,7 +13083,7 @@ OnePassSignature.prototype.postCloneTypeFix = function() {
   this.signingKeyId = type_keyid.fromClone(this.signingKeyId);
 };
 
-},{"../enums.js":42,"../type/keyid.js":70}],56:[function(require,module,exports){
+},{"../enums.js":44,"../type/keyid.js":72}],58:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -14514,7 +13348,7 @@ module.exports = {
   }
 };
 
-},{"../enums.js":42,"../util.js":73}],57:[function(require,module,exports){
+},{"../enums.js":44,"../util.js":75}],59:[function(require,module,exports){
 /**
  * This class represents a list of openpgp packets.
  * Take care when iterating over it - the packets themselves
@@ -14711,7 +13545,7 @@ module.exports.fromStructuredClone = function(packetlistClone) {
   }
   return packetlist;
 };
-},{"../enums.js":42,"./all_packets.js":50,"./packet.js":56}],58:[function(require,module,exports){
+},{"../enums.js":44,"./all_packets.js":52,"./packet.js":58}],60:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -14937,7 +13771,7 @@ PublicKey.prototype.postCloneTypeFix = function() {
   }
 };
 
-},{"../crypto":31,"../enums.js":42,"../type/keyid.js":70,"../type/mpi.js":71,"../util.js":73}],59:[function(require,module,exports){
+},{"../crypto":33,"../enums.js":44,"../type/keyid.js":72,"../type/mpi.js":73,"../util.js":75}],61:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -15132,7 +13966,7 @@ PublicKeyEncryptedSessionKey.prototype.postCloneTypeFix = function() {
   }
 };
 
-},{"../crypto":31,"../enums.js":42,"../type/keyid.js":70,"../type/mpi.js":71,"../util.js":73}],60:[function(require,module,exports){
+},{"../crypto":33,"../enums.js":44,"../type/keyid.js":72,"../type/mpi.js":73,"../util.js":75}],62:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -15173,7 +14007,7 @@ function PublicSubkey() {
 PublicSubkey.prototype = new publicKey();
 PublicSubkey.prototype.constructor = PublicSubkey;
 
-},{"../enums.js":42,"./public_key.js":58}],61:[function(require,module,exports){
+},{"../enums.js":44,"./public_key.js":60}],63:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 //
@@ -15466,7 +14300,7 @@ SecretKey.prototype.clearPrivateMPIs = function () {
   this.isDecrypted = false;
 };
 
-},{"../crypto":31,"../enums.js":42,"../type/mpi.js":71,"../type/s2k.js":72,"../util.js":73,"./public_key.js":58}],62:[function(require,module,exports){
+},{"../crypto":33,"../enums.js":44,"../type/mpi.js":73,"../type/s2k.js":74,"../util.js":75,"./public_key.js":60}],64:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -15507,7 +14341,7 @@ function SecretSubkey() {
 SecretSubkey.prototype = new secretKey();
 SecretSubkey.prototype.constructor = SecretSubkey;
 
-},{"../enums.js":42,"./secret_key.js":61}],63:[function(require,module,exports){
+},{"../enums.js":44,"./secret_key.js":63}],65:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -16169,7 +15003,7 @@ Signature.prototype.postCloneTypeFix = function() {
   this.issuerKeyId = type_keyid.fromClone(this.issuerKeyId);
 };
 
-},{"../crypto":31,"../enums.js":42,"../type/keyid.js":70,"../type/mpi.js":71,"../util.js":73,"./packet.js":56}],64:[function(require,module,exports){
+},{"../crypto":33,"../enums.js":44,"../type/keyid.js":72,"../type/mpi.js":73,"../util.js":75,"./packet.js":58}],66:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -16297,7 +15131,7 @@ SymEncryptedIntegrityProtected.prototype.decrypt = function (sessionKeyAlgorithm
     this.packets.read(decrypted.substr(0, decrypted.length - 22));
 };
 
-},{"../crypto":31,"../enums.js":42,"../util.js":73}],65:[function(require,module,exports){
+},{"../crypto":33,"../enums.js":44,"../util.js":75}],67:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -16346,6 +15180,7 @@ module.exports = SymEncryptedSessionKey;
  */
 function SymEncryptedSessionKey() {
   this.tag = enums.packet.symEncryptedSessionKey;
+  this.version = 4;
   this.sessionKeyEncryptionAlgorithm = null;
   this.sessionKeyAlgorithm = 'aes256';
   this.encrypted = null;
@@ -16448,7 +15283,7 @@ SymEncryptedSessionKey.prototype.postCloneTypeFix = function() {
   this.s2k = type_s2k.fromClone(this.s2k);
 };
 
-},{"../crypto":31,"../enums.js":42,"../type/s2k.js":72}],66:[function(require,module,exports){
+},{"../crypto":33,"../enums.js":44,"../type/s2k.js":74}],68:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -16526,7 +15361,7 @@ SymmetricallyEncrypted.prototype.encrypt = function (algo, key) {
     crypto.getPrefixRandom(algo), algo, data, key, true);
 };
 
-},{"../crypto":31,"../enums.js":42}],67:[function(require,module,exports){
+},{"../crypto":33,"../enums.js":44}],69:[function(require,module,exports){
 /**
  * @requires enums
  * @module packet/trust
@@ -16552,7 +15387,7 @@ Trust.prototype.read = function (bytes) {
 
 };
 
-},{"../enums.js":42}],68:[function(require,module,exports){
+},{"../enums.js":44}],70:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -16647,7 +15482,7 @@ UserAttribute.prototype.equals = function(usrAttr) {
   });
 };
 
-},{"../enums.js":42,"../util.js":73,"./packet.js":56}],69:[function(require,module,exports){
+},{"../enums.js":44,"../util.js":75,"./packet.js":58}],71:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -16711,7 +15546,7 @@ Userid.prototype.write = function () {
   return util.encode_utf8(this.userid);
 };
 
-},{"../enums.js":42,"../util.js":73}],70:[function(require,module,exports){
+},{"../enums.js":44,"../util.js":75}],72:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -16786,7 +15621,13 @@ module.exports.fromClone = function (clone) {
   return keyid;
 };
 
-},{"../util.js":73}],71:[function(require,module,exports){
+module.exports.fromId = function (hex) {
+  var keyid = new Keyid();
+  keyid.read(util.hex2bin(hex));
+  return keyid;
+};
+
+},{"../util.js":75}],73:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -16899,7 +15740,7 @@ module.exports.fromClone = function (clone) {
   return mpi;
 };
 
-},{"../crypto/public_key/jsbn.js":36,"../util.js":73}],72:[function(require,module,exports){
+},{"../crypto/public_key/jsbn.js":38,"../util.js":75}],74:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 // 
@@ -17090,7 +15931,7 @@ module.exports.fromClone = function (clone) {
   return s2k;
 };
 
-},{"../crypto":31,"../enums.js":42,"../util.js":73}],73:[function(require,module,exports){
+},{"../crypto":33,"../enums.js":44,"../util.js":75}],75:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 //
@@ -17413,13 +16254,13 @@ module.exports = {
       return;
     }
 
-    if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
-      return window.crypto.subtle;
+    if (typeof window !== 'undefined' && window.crypto) {
+      return window.crypto.subtle || window.crypto.webkitSubtle;
     }
   }
 };
 
-},{"./config":15}],74:[function(require,module,exports){
+},{"./config":17}],76:[function(require,module,exports){
 // GPG4Browsers - An OpenPGP implementation in javascript
 // Copyright (C) 2011 Recurity Labs GmbH
 //
@@ -17460,9 +16301,16 @@ var INITIAL_RANDOM_SEED = 50000, // random bytes seeded to worker
  * Initializes a new proxy and loads the web worker
  * @constructor
  * @param {String} path The path to the worker or 'openpgp.worker.js' by default
+ * @param {Object} [options.config=Object] config The worker configuration
+ * @param {Object} [options.worker=Object] alternative to path parameter:
+ *                                         web worker initialized with 'openpgp.worker.js'
  */
-function AsyncProxy(path) {
-  this.worker = new Worker(path || 'openpgp.worker.js');
+function AsyncProxy(path, options) {
+  if (options && options.worker) {
+    this.worker = options.worker;
+  } else {
+    this.worker = new Worker(path || 'openpgp.worker.js');
+  }
   this.worker.onmessage = this.onMessage.bind(this);
   this.worker.onerror = function(e) {
     throw new Error('Unhandled error in openpgp worker: ' + e.message + ' (' + e.filename + ':' + e.lineno + ')');
@@ -17470,6 +16318,9 @@ function AsyncProxy(path) {
   this.seedRandom(INITIAL_RANDOM_SEED);
   // FIFO
   this.tasks = [];
+  if (options && options.config) {
+    this.worker.postMessage({event: 'configure', config: options.config});
+  }
 }
 
 /**
@@ -17784,7 +16635,7 @@ AsyncProxy.prototype.decryptKeyPacket = function(privateKey, keyIds, password) {
 
 module.exports = AsyncProxy;
 
-},{"../crypto":31,"../key.js":44,"../packet":52,"../type/keyid.js":70}]},{},[43])
-(43)
+},{"../crypto":33,"../key.js":46,"../packet":54,"../type/keyid.js":72}]},{},[45])
+(45)
 });
 ;

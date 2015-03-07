@@ -4,10 +4,6 @@ var privateKeyFormToggle = true;
 var publicKeyFormToggle = true;
 var generateKeyFormToggle = true;
 
-function showMessages(msg){
-  console.log(msg);
-}
-
 function generateKeyPair(){
   $('.alert').hide();
   var form = $('#generateKeyPairForm');
@@ -17,46 +13,38 @@ function generateKeyPair(){
           passphrase: form.find('#password').val()
   };
   var keyPair = openpgp.generateKeyPair(generateOptions);
-  keyring.privateKeys.importKey(keyPair.privateKeyArmored);
-  keyring.publicKeys.importKey(keyPair.publicKeyArmored);
-  keyring.store();
-  parsePrivateKeys();
-  parsePublicKeys();
+  keyPair.then(function(result) {
+    keyring.privateKeys.importKey(result.privateKeyArmored);
+    keyring.publicKeys.importKey(result.publicKeyArmored);
+    keyring.store();
+    parsePrivateKeys();
+    parsePublicKeys();
+  });
 }
 
 function insertPrivateKey(){
   $('.alert').hide();
   var privKey = $('#newPrivateKey').val();
-  try {
-    var importResult = keyring.privateKeys.importKey(privKey);
-    if (importResult === null) {
-      keyring.store();
-      parsePrivateKeys();
-      return true;
-    }
-    else{
-      $('#insertPrivateKeyForm').prepend('<div class="alert alert-error" id="gCryptAlertOpenpgpjs">' + importResult  + '</div>');
-    }
-  }
-  catch(e){
-    $('#insertPrivateKeyForm').prepend('<div class="alert alert-error" id="gCryptAlertPassword">Mymail-Crypt for Gmail was unable to read your key. It would be great if you could contact us so we can help figure out what went wrong.</div>');
-  }
-  return false;
+  return handleKeyringImportResponse(keyring.privateKeys.importKey(privKey), '#insertPrivateKeyForm');
 }
 
 function insertPublicKey(){
   $('.alert').hide();
   var pubKey = $('#newPublicKey').val();
-  try{
-    keyring.publicKeys.importKey(pubKey);
+  return handleKeyringImportResponse(keyring.publicKeys.importKey(pubKey), '#insertPublicKeyForm');
+}
+
+function handleKeyringImportResponse(importResult, selector) {
+  if (importResult === null) {
     keyring.store();
     parsePublicKeys();
+    parsePrivateKeys();
     return true;
   }
-  catch(e){
+  else {
+    $(selector).prepend('<div class="alert alert-error">' + importResult + '</div><div class="alert alert-error">Mymail-Crypt for Gmail was unable to read this key. It would be great if you could contact us so we can help figure out what went wrong.</div>');
+    return false;
   }
-  $('#insertPublicKeyForm').prepend('<div class="alert alert-error" id="gCryptAlertPassword">Mymail-Crypt for Gmail was unable to read this key. It would be great if you could contact us so we can help figure out what went wrong.</div>');
-  return false;
 }
 
 function parsePublicKeys(){
@@ -78,7 +66,7 @@ function parseKeys(keys, domPrefix){
   for(var k = 0; k < keys.length; k++) {
     var key = keys[k];
     var user = gCryptUtil.parseUser(key.users[0].userId.userid);
-    $('#' + domPrefix + 'KeyTable>tbody').append('<tr><td class="removeLink" id="' + k + '"><a href="#">remove</a></td>' +
+    $('#' + domPrefix + 'KeyTable>tbody').append('<tr><td><a href="#" class="removeLink" id="' + k + '">remove</a></td>' +
                                        '<td>' + user.userName + '</td>' +
                                        '<td>' + user.userEmail + '</td>' +
                                        '<td><a href="#' + domPrefix + k +'" data-toggle="modal">show key</a><div class="modal" id="' + domPrefix + k + '"><div class="modal-body"><a class="close" data-dismiss="modal">Close</a><br/ ><pre>' + key.armor() + '</pre></div></div></td></tr>');

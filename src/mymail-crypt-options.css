@@ -11,3 +11,12 @@
 #generateKeyPairForm .input-large {
   height: 30px;
 }
+
+textarea {
+  font-family: monospace;
+}
+
+#newPublicKey, #newPrivateKey {
+  width: 650px;
+  min-height: 400px;
+}
