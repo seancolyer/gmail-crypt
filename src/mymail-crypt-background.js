@@ -232,9 +232,12 @@ function setupDraftStopping() {
 }
 
 function determineIfRequestDraftSaving(details) {
-  if (details.method == "POST" && ( _.contains(details.url, "autosave") ||
-       "body" in details.requestBody.formData ||
-       "subject" in details.requestBody.formData )) {
+  // We want to make sure: 1 -- this is a post, also it's either an autosave URL or is sending body/subject and is not a send email request
+  if (details.method == "POST" && (_.contains(details.url, "autosave") ||
+                                   (!_.contains(details.url, "rid=mail") &&
+                                   (details.requestBody && details.requestBody.formData && (
+                                    "body" in details.requestBody.formData ||
+                                    "subject" in details.requestBody.formData ))))) {
     return {cancel: true};
   }
 }
@@ -246,5 +249,7 @@ document.onload = function() {
   config = new openpgp.config.localStorage();
   config.read();
   openpgp.config = config.config;
-  setupDraftStopping();
+
+  // TODO this is a new potential avenue for draft blocking
+  //setupDraftStopping();
 }();

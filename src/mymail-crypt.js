@@ -249,7 +249,7 @@ function composeIntercept(ev) {
     sendExtensionRequestPromise({method: 'getOption', option: 'stopAutomaticDrafts', thirdParty: true})
     .then(function(response) {
       if(response === true){
-        //stopAutomaticDrafts();
+        stopAutomaticDrafts();
       }
     });
   }
