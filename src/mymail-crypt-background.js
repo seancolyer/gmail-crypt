@@ -147,21 +147,38 @@ function decrypt(senderEmail, msg, password, callback) {
 
     var promise = openpgp.decryptAndVerifyMessage(key, publicKeys, msg);
     promise.then(function(result) {
-      _(result.signatures).each(function(signature) {
-        if (signature.valid) {
-          status = [gCryptAlerts.gCryptAbleVerifySignature];
-        }
-      });
-      if (status.length === 0) {
-        status = [gCryptAlerts.gCryptUnableVerifySignature];
-      }
-      decryptResult(true, status, result, callback);
-
+      validateResultSignatures(result, callback);
     }).catch(function(exception) {
-      status.push(gCryptAlerts.gCryptAlertDecrypt);
-      decryptResult(false, status, undefined, callback);
+      // Try without validating signature, we have to do this because it will throw exception
+      // if unable validate signature on decrypt
+      promise = openpgp.decryptMessage(key, msg);
+      promise.then(function(result) {
+        validateResultSignatures(result, callback);
+      }).catch(function(exception) {
+        status.push(gCryptAlerts.gCryptAlertDecrypt);
+        decryptResult(false, status, undefined, callback);
+      });
     });
   }
+}
+
+function validateResultSignatures(result, callback) {
+  var signatureBooleans;
+  var status = [];
+  var verified = false;
+  if (result.signatures) {
+    signatureBooleans = _.map(result.signatures, function (signature) {
+      return signature.valid;
+    });
+    verified = _.contains(signatureBooleans, false) ? false: true;
+  }
+  if (verified) {
+    status.push(gCryptAlerts.gCryptAbleVerifySignature);
+  }
+  else {
+    status.push(gCryptAlerts.gCryptUnableVerifySignature);
+  }
+  decryptResult(true, status, result, callback);
 }
 
 function verify(senderEmail, msg, callback) {
@@ -176,9 +193,7 @@ function verify(senderEmail, msg, callback) {
   var publicKeys = keyring.publicKeys.getForAddress(senderEmail);
   var promise = openpgp.verifyClearSignedMessage(publicKeys, msg);
   promise.then(function(result) {
-    status.push(gCryptAlerts.gCryptAbleVerifySignature);
-    decryptResult(true, status, result, callback);
-
+    validateResultSignatures(result, callback);
   }).catch(function(exception) {
     status.push(gCryptAlerts.gCryptUnableVerifySignature);
     decryptResult(false, status, undefined, callback);

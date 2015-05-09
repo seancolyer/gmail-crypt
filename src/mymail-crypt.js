@@ -171,7 +171,15 @@ function sendAndHandleDecryptAndVerify(event){
       $(objectContext).parents('div[class="gE iv gt"]').append(status.html);
     });
     if (response.decrypted) {
-      element.html(response.result.text.replace(/\n/g,'<br>'));
+      var text;
+      if (response.result.text) {
+        text = response.result.text;
+      }
+      else {
+        // We have to do this because sometimes the API returns just the text
+        text = response.result;
+      }
+      element.html(text.replace(/\n/g,'<br>'));
     }
   });
 }
