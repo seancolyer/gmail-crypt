@@ -140,6 +140,10 @@ function decrypt(senderEmail, msg, password, callback) {
   var publicKeys = keyring.publicKeys.getForAddress(senderEmail);
   for (var r = 0; r < privateKeys.length; r++){
     var key = privateKeys[r];
+    if (key === null) {
+      // no private key found for the corresponding keyId
+      continue;
+    }
     if (!key.decryptKeyPacket(keyIds, password)) {
       //TODO this could be generate false positive errors if we privateKeys really has multiple hits
       status.push(gCryptAlerts.gCryptAlertPassword);
