@@ -22,7 +22,7 @@ var gCryptAlerts = {
     html: '<div class="alert alert-error" id="gCryptAlertPassword">Mymail-Crypt For Gmail was unable to read your key. Is your password correct?</div>'},
   gCryptAlertDecrypt: {id: 'gCryptAlertDecrypt', type: 'error', text: 'Mymail-Crypt for Gmail was unable to decrypt this message.',
     html: '<div class="alert alert-error" id="gCryptAlertDecrypt">Mymail-Crypt for Gmail was unable to decrypt this message.</div>'},
-  gCryptAlertEncryptNoUser: {id: 'gCryptAlertEncryptNoUser', type: 'error', text: 'Unable to find a key for the given user. Have you inserted their public key?',
+  gCryptAlertEncryptNoUser: {id: 'gCryptAlertEncryptNoUser', type: 'error', text: 'Unable to find a public key for the recipients. Have you inserted their public key(s)?',
     html: '<div class="alert alert-error" id="gCryptAlertEncryptNoUser">Unable to find a key for the given user. Have you inserted their public key?</div>'},
   gCryptAlertEncryptNoPrivateKeys: {id: 'gCryptAlertEncryptNoPrivateKeys', type: 'error', text: 'Unable to find a private key for the given user. Have you inserted yours in the Options page?',
     html: '<div class="alert alert-error" id="gCryptAlertEncryptNoUser">Unable to find a private key for the given user. Have you inserted yours in the Options page?</div>'}
@@ -61,7 +61,7 @@ function prepareAndValidateKeysForRecipients(recipients, from) {
     }
   });
 
-  if (_.isEmpty(keys)){
+  if (_.isEmpty(keys) || (_.size(recipients.email) != _.size(keys))){
     return gCryptAlerts.gCryptAlertEncryptNoUser;
   }
 
@@ -132,18 +132,14 @@ function decrypt(senderEmail, msg, password, callback) {
     decryptResult(false, status, undefined, callback);
   }
   var keyIds = msg.getEncryptionKeyIds();
-  var privateKeys = getKeys(keyIds, keyring.privateKeys);
+  var privateKeys = _.compact(getKeys(keyIds, keyring.privateKeys));
   if (_.size(privateKeys) === 0) {
-    status.push(gCryptAlerts.gCryptAlertDecrypt);
+    status.push(gCryptAlerts.gCryptAlertEncryptNoPrivateKeys);
     decryptResult(false, status, undefined, callback);
   }
   var publicKeys = keyring.publicKeys.getForAddress(senderEmail);
   for (var r = 0; r < privateKeys.length; r++){
     var key = privateKeys[r];
-    if (key === null) {
-      // no private key found for the corresponding keyId
-      continue;
-    }
     if (!key.decryptKeyPacket(keyIds, password)) {
       //TODO this could be generate false positive errors if we privateKeys really has multiple hits
       status.push(gCryptAlerts.gCryptAlertPassword);
