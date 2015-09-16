@@ -151,7 +151,7 @@ function getMessage(objectContext){
   msg = element.html().replace(/\n/g,"");
   msg = msg.replace(/(<br><\/div>)/g,'\n'); //we need to ensure that extra spaces aren't added where gmail puts a <div><br></div>
   msg = msg.replace(/(<\/div>)/g,'\n');
-  msg = msg.replace(/(<br>)/g,'\n');
+  msg = msg.replace(/(<br.*?>)/g,'\n');
 
   //originally stripped just <br> and <wbr> but gmail can add other things such as <div class="im">
   msg = msg.replace(/<(.*?)>/g,'');
