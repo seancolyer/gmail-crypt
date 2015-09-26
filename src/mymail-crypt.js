@@ -5,6 +5,7 @@
  * See included "LICENSE" file for details.
  */
 
+var sanitizeHtml = require('sanitizeHtml');
 var rootElement = $(document);
 
 //This clear and save is specific to the embedded reply composes
@@ -179,7 +180,8 @@ function sendAndHandleDecryptAndVerify(event){
         // We have to do this because sometimes the API returns just the text
         text = response.result;
       }
-      element.html(text.replace(/\n/g,'<br>'));
+      text = sanitizeHtml(text.replace(/\n/g,'<br>'));
+      element.html(text);
     }
   });
 }

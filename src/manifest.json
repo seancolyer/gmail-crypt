@@ -20,7 +20,14 @@
   "content_scripts": [{
     "matches":["https://mail.google.com/*","http://mail.google.com/*"],
     "css": ["bootstrap.btn.css", "bootstrap.modal.css", "mymail-crypt.css"],
-    "js": ["lib/jquery-2.1.0.min.js", "lib/bootstrap-dropdown.js", "lib/bootstrap-modal.js","lib/openpgp.js","mymail-crypt-util.js","mymail-crypt.js"],
+    "js": [
+      "lib/jquery-2.1.0.min.js",
+      "lib/sanitize-html.browserify.1.10.0.js",
+      "lib/bootstrap-dropdown.js",
+      "lib/bootstrap-modal.js",
+      "lib/openpgp.js",
+      "mymail-crypt-util.js",
+      "mymail-crypt.js"],
     "run_at":"document_idle",
     "all_frames":true
   }],
