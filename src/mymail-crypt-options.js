@@ -42,7 +42,8 @@ function handleKeyringImportResponse(importResult, selector) {
     return true;
   }
   else {
-    $(selector).prepend('<div class="alert alert-error">' + importResult + '</div><div class="alert alert-error">Mymail-Crypt for Gmail was unable to read this key. It would be great if you could contact us so we can help figure out what went wrong.</div>');
+    $(selector).prepend('<div id="openpgpjs-error" class="alert alert-error"></div><div class="alert alert-error">Mymail-Crypt for Gmail was unable to read this key. It would be great if you could contact us so we can help figure out what went wrong.</div>');
+    $(selector + ' #openpgpjs-error').text(importResult);
     return false;
   }
 }
@@ -66,10 +67,14 @@ function parseKeys(keys, domPrefix){
   for(var k = 0; k < keys.length; k++) {
     var key = keys[k];
     var user = gCryptUtil.parseUser(key.users[0].userId.userid);
-    $('#' + domPrefix + 'KeyTable>tbody').append('<tr><td><a href="#" class="removeLink" id="' + k + '">remove</a></td>' +
-                                       '<td>' + user.userName + '</td>' +
-                                       '<td>' + user.userEmail + '</td>' +
-                                       '<td><a href="#' + domPrefix + k +'" data-toggle="modal">show key</a><div class="modal" id="' + domPrefix + k + '"><div class="modal-body"><a class="close" data-dismiss="modal">Close</a><br/ ><pre>' + key.armor() + '</pre></div></div></td></tr>');
+    $('#' + domPrefix + 'KeyTable>tbody').append('<tr id="keyRow'+ k + '"><td><a href="#" class="removeLink" id="' + k + '">remove</a></td>' +
+                                       '<td class="userName"></td>' +
+                                       '<td class="userEmail"></td>' +
+                                       '<td><a href="#' + domPrefix + k +'" data-toggle="modal">show key</a><div class="modal" id="' + domPrefix + k + '"><div class="modal-body"><a class="close" data-dismiss="modal">Close</a><br/ ><pre class="keyText"></pre></div></div></td></tr>');
+    // We need to set the userName and userEmail here via `text` calls because they are unsafe and need sanitized
+    $('#' + domPrefix + 'KeyTable #keyRow'+ k + ' .userName').text(user.userName);
+    $('#' + domPrefix + 'KeyTable #keyRow'+ k + ' .userEmail').text(user.userEmail);
+    $('#' + domPrefix + 'KeyTable #keyRow'+ k + ' .keyText').text(key.armor());
     $('#' + domPrefix + k).hide();
     $('#' + domPrefix + k).modal({backdrop: true, show: false});
   }

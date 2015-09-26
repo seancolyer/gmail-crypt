@@ -180,6 +180,7 @@ function sendAndHandleDecryptAndVerify(event){
         // We have to do this because sometimes the API returns just the text
         text = response.result;
       }
+      // TODO let's add a warning if the sanitizeHtml has a significant impact on the text length/content
       text = sanitizeHtml(text.replace(/\n/g,'<br>'));
       element.html(text);
     }
