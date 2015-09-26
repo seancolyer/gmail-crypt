@@ -994,7 +994,7 @@ module.exports = {
 
   show_version: false,
   show_comment: true,
-  versionstring: "OpenPGP.js v0.11.1",
+  versionstring: "OpenPGP.js v1.2.0",
   commentstring: "http://openpgpjs.org",
 
   keyserver: "keyserver.linux.it", // "pgp.mit.edu:11371"
@@ -1228,7 +1228,7 @@ module.exports = {
     var iblock = new Uint8Array(block_size);
     var ablock = new Uint8Array(block_size);
     var i, n = '';
-    var text = '';
+    var text = [];
 
     // initialisation vector
     for (i = 0; i < block_size; i++) {
@@ -1250,11 +1250,11 @@ module.exports = {
     }
 
     /*  RFC4880: Tag 18 and Resync:
-		 *  [...] Unlike the Symmetrically Encrypted Data Packet, no
-		 *  special CFB resynchronization is done after encrypting this prefix
-		 *  data.  See "OpenPGP CFB Mode" below for more details.
+     *  [...] Unlike the Symmetrically Encrypted Data Packet, no
+     *  special CFB resynchronization is done after encrypting this prefix
+     *  data.  See "OpenPGP CFB Mode" below for more details.
 
-		 */
+     */
 
     if (resync) {
       for (i = 0; i < block_size; i++) {
@@ -1265,7 +1265,7 @@ module.exports = {
 
         for (i = 0; i < block_size && i + n < ciphertext.length; i++) {
           iblock[i] = ciphertext.charCodeAt(n + i);
-          text += String.fromCharCode(ablock[i] ^ iblock[i]);
+          text.push(String.fromCharCode(ablock[i] ^ iblock[i]));
         }
       }
     } else {
@@ -1276,18 +1276,17 @@ module.exports = {
         ablock = cipherfn.encrypt(iblock);
         for (i = 0; i < block_size && i + n < ciphertext.length; i++) {
           iblock[i] = ciphertext.charCodeAt(n + i);
-          text += String.fromCharCode(ablock[i] ^ iblock[i]);
+          text.push(String.fromCharCode(ablock[i] ^ iblock[i]));
         }
       }
     }
-
-    n = resync ? 0 : 2;
-
-    text = text.substring(n, ciphertext.length - block_size - 2 + n);
-
+    if (!resync)
+    {
+      text.splice(0, 2);
+    }
+    text.splice(ciphertext.length - block_size - 2);
     return text;
   },
-
 
   normalEncrypt: function(cipherfn, key, plaintext, iv) {
     cipherfn = new cipher[cipherfn](key);
@@ -9128,7 +9127,17 @@ function RSA() {
       var Euint8 = new Uint8Array(Euint32.buffer); // get bytes of exponent
       var keyGenOpt;
 
-      if (window.crypto.subtle) {
+      var keys;
+      if (window.crypto && window.crypto.webkitSubtle) {
+        // outdated spec implemented by Webkit
+        keyGenOpt = {
+          name: 'RSA-OAEP',
+          modulusLength: B, // the specified keysize in bits
+          publicExponent: Euint8.subarray(0, 3), // take three bytes (max 65537)
+        };
+        keys = webCrypto.generateKey(keyGenOpt, true, ['encrypt', 'decrypt']);
+      }
+      else {
         // current standard spec
         keyGenOpt = {
           name: 'RSASSA-PKCS1-v1_5',
@@ -9138,29 +9147,30 @@ function RSA() {
             name: 'SHA-1' // not required for actual RSA keys, but for crypto api 'sign' and 'verify'
           }
         };
-        return webCrypto.generateKey(keyGenOpt, true, ['sign', 'verify']).then(exportKey).then(decodeKey);
-
-      } else if (window.crypto.webkitSubtle) {
-        // outdated spec implemented by Webkit
-        keyGenOpt = {
-          name: 'RSA-OAEP',
-          modulusLength: B, // the specified keysize in bits
-          publicExponent: Euint8.subarray(0, 3), // take three bytes (max 65537)
-        };
-        return webCrypto.generateKey(keyGenOpt, true, ['encrypt', 'decrypt']).then(exportKey).then(function(key) {
-          if (key instanceof ArrayBuffer) {
-            // parse raw ArrayBuffer bytes to jwk/json (WebKit/Safari quirk)
-            return decodeKey(JSON.parse(String.fromCharCode.apply(null, new Uint8Array(key))));
-          }
-          return decodeKey(key);
-        });
+        
+        keys = webCrypto.generateKey(keyGenOpt, true, ['sign', 'verify']);
+        if (!(keys instanceof Promise)) { // IE11 KeyOperation
+          keys = convertKeyOperation(keys, 'Error generating RSA key pair.');
+        }
       }
+
+      return keys.then(exportKey).then(function(key) {
+        if (key instanceof ArrayBuffer) {
+          // parse raw ArrayBuffer bytes to jwk/json (WebKit/Safari/IE11 quirk)
+          return decodeKey(JSON.parse(String.fromCharCode.apply(null, new Uint8Array(key))));
+        }
+        return decodeKey(key);
+      });
     }
 
     function exportKey(keypair) {
       // export the generated keys as JsonWebKey (JWK)
       // https://tools.ietf.org/html/draft-ietf-jose-json-web-key-33
-      return webCrypto.exportKey('jwk', keypair.privateKey);
+      var key = webCrypto.exportKey('jwk', keypair.privateKey);
+      if (!(key instanceof Promise)) { // IE11 KeyOperation
+        key = convertKeyOperation(key, 'Error exporting RSA key pair.');
+      }
+      return key;
     }
 
     function decodeKey(jwk) {
@@ -9180,6 +9190,17 @@ function RSA() {
       }
 
       return key;
+    }
+
+    function convertKeyOperation(keyop, errmsg) {
+      return new Promise(function(resolve, reject) {
+        keyop.onerror = function (err) { 
+          reject(new Error(errmsg));
+        }
+        keyop.oncomplete = function (e) {
+          resolve(e.target.result);
+        }
+      });
     }
 
     //
@@ -9894,56 +9915,56 @@ function dearmor(text) {
  * @static
  */
 function armor(messagetype, body, partindex, parttotal) {
-  var result = "";
+  var result = [];
   switch (messagetype) {
     case enums.armor.multipart_section:
-      result += "-----BEGIN PGP MESSAGE, PART " + partindex + "/" + parttotal + "-----\r\n";
-      result += addheader();
-      result += base64.encode(body);
-      result += "\r\n=" + getCheckSum(body) + "\r\n";
-      result += "-----END PGP MESSAGE, PART " + partindex + "/" + parttotal + "-----\r\n";
+      result.push("-----BEGIN PGP MESSAGE, PART " + partindex + "/" + parttotal + "-----\r\n");
+      result.push(addheader());
+      result.push(base64.encode(body));
+      result.push("\r\n=" + getCheckSum(body) + "\r\n");
+      result.push("-----END PGP MESSAGE, PART " + partindex + "/" + parttotal + "-----\r\n");
       break;
     case enums.armor.multipart_last:
-      result += "-----BEGIN PGP MESSAGE, PART " + partindex + "-----\r\n";
-      result += addheader();
-      result += base64.encode(body);
-      result += "\r\n=" + getCheckSum(body) + "\r\n";
-      result += "-----END PGP MESSAGE, PART " + partindex + "-----\r\n";
+      result.push("-----BEGIN PGP MESSAGE, PART " + partindex + "-----\r\n");
+      result.push(addheader());
+      result.push(base64.encode(body));
+      result.push("\r\n=" + getCheckSum(body) + "\r\n");
+      result.push("-----END PGP MESSAGE, PART " + partindex + "-----\r\n");
       break;
     case enums.armor.signed:
-      result += "\r\n-----BEGIN PGP SIGNED MESSAGE-----\r\n";
-      result += "Hash: " + body.hash + "\r\n\r\n";
-      result += body.text.replace(/\n-/g, "\n- -");
-      result += "\r\n-----BEGIN PGP SIGNATURE-----\r\n";
-      result += addheader();
-      result += base64.encode(body.data);
-      result += "\r\n=" + getCheckSum(body.data) + "\r\n";
-      result += "-----END PGP SIGNATURE-----\r\n";
+      result.push("\r\n-----BEGIN PGP SIGNED MESSAGE-----\r\n");
+      result.push("Hash: " + body.hash + "\r\n\r\n");
+      result.push(body.text.replace(/\n-/g, "\n- -"));
+      result.push("\r\n-----BEGIN PGP SIGNATURE-----\r\n");
+      result.push(addheader());
+      result.push(base64.encode(body.data));
+      result.push("\r\n=" + getCheckSum(body.data) + "\r\n");
+      result.push("-----END PGP SIGNATURE-----\r\n");
       break;
     case enums.armor.message:
-      result += "-----BEGIN PGP MESSAGE-----\r\n";
-      result += addheader();
-      result += base64.encode(body);
-      result += "\r\n=" + getCheckSum(body) + "\r\n";
-      result += "-----END PGP MESSAGE-----\r\n";
+      result.push("-----BEGIN PGP MESSAGE-----\r\n");
+      result.push(addheader());
+      result.push(base64.encode(body));
+      result.push("\r\n=" + getCheckSum(body) + "\r\n");
+      result.push("-----END PGP MESSAGE-----\r\n");
       break;
     case enums.armor.public_key:
-      result += "-----BEGIN PGP PUBLIC KEY BLOCK-----\r\n";
-      result += addheader();
-      result += base64.encode(body);
-      result += "\r\n=" + getCheckSum(body) + "\r\n";
-      result += "-----END PGP PUBLIC KEY BLOCK-----\r\n\r\n";
+      result.push("-----BEGIN PGP PUBLIC KEY BLOCK-----\r\n");
+      result.push(addheader());
+      result.push(base64.encode(body));
+      result.push("\r\n=" + getCheckSum(body) + "\r\n");
+      result.push("-----END PGP PUBLIC KEY BLOCK-----\r\n\r\n");
       break;
     case enums.armor.private_key:
-      result += "-----BEGIN PGP PRIVATE KEY BLOCK-----\r\n";
-      result += addheader();
-      result += base64.encode(body);
-      result += "\r\n=" + getCheckSum(body) + "\r\n";
-      result += "-----END PGP PRIVATE KEY BLOCK-----\r\n";
+      result.push("-----BEGIN PGP PRIVATE KEY BLOCK-----\r\n");
+      result.push(addheader());
+      result.push(base64.encode(body));
+      result.push("\r\n=" + getCheckSum(body) + "\r\n");
+      result.push("-----END PGP PRIVATE KEY BLOCK-----\r\n");
       break;
   }
 
-  return result;
+  return result.join('');
 }
 
 module.exports = {
@@ -9977,51 +9998,55 @@ var b64s = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
  * @returns {string} radix-64 version of input string
  * @static
  */
-function s2r(t) {
+function s2r(t, o) {
+  // TODO check btoa alternative
   var a, c, n;
-  var r = '',
-    l = 0,
-    s = 0;
+  var r = o ? o : [],
+      l = 0,
+      s = 0;
   var tl = t.length;
 
   for (n = 0; n < tl; n++) {
     c = t.charCodeAt(n);
     if (s === 0) {
-      r += b64s.charAt((c >> 2) & 63);
+      r.push(b64s.charAt((c >> 2) & 63));
       a = (c & 3) << 4;
     } else if (s == 1) {
-      r += b64s.charAt((a | (c >> 4) & 15));
+      r.push(b64s.charAt((a | (c >> 4) & 15)));
       a = (c & 15) << 2;
     } else if (s == 2) {
-      r += b64s.charAt(a | ((c >> 6) & 3));
+      r.push(b64s.charAt(a | ((c >> 6) & 3)));
       l += 1;
       if ((l % 60) === 0)
-        r += "\n";
-      r += b64s.charAt(c & 63);
+        r.push("\n");
+      r.push(b64s.charAt(c & 63));
     }
     l += 1;
     if ((l % 60) === 0)
-      r += "\n";
+      r.push("\n");
 
     s += 1;
     if (s == 3)
       s = 0;
   }
   if (s > 0) {
-    r += b64s.charAt(a);
+    r.push(b64s.charAt(a));
     l += 1;
     if ((l % 60) === 0)
-      r += "\n";
-    r += '=';
+      r.push("\n");
+    r.push('=');
     l += 1;
   }
   if (s == 1) {
     if ((l % 60) === 0)
-      r += "\n";
-    r += '=';
+      r.push("\n");
+    r.push('=');
   }
-
-  return r;
+  if (o)
+  {
+    return;
+  }
+  return r.join('');
 }
 
 /**
@@ -10031,22 +10056,23 @@ function s2r(t) {
  * @static
  */
 function r2s(t) {
+  // TODO check atob alternative
   var c, n;
-  var r = '',
-    s = 0,
-    a = 0;
+  var r = [],
+      s = 0,
+      a = 0;
   var tl = t.length;
 
   for (n = 0; n < tl; n++) {
     c = b64s.indexOf(t.charAt(n));
     if (c >= 0) {
       if (s)
-        r += String.fromCharCode(a | (c >> (6 - s)) & 255);
+        r.push(String.fromCharCode(a | (c >> (6 - s)) & 255));
       s = (s + 2) & 7;
       a = (c << s) & 255;
     }
   }
-  return r;
+  return r.join('');
 }
 
 module.exports = {
@@ -11631,7 +11657,9 @@ KeyArray.prototype.getForAddress = function(email) {
  * @return {Boolean} True if the email address is defined in the specified key
  */
 function emailCheck(email, key) {
-  var emailRegex = new RegExp('<' + email.toLowerCase() + '>');
+  // escape email before using in regular expression
+  email = email.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  var emailRegex = new RegExp('<' + email + '>');
   var keyEmails = key.getUserIds();
   for (var i = 0; i < keyEmails.length; i++) {
     if (emailRegex.test(keyEmails[i].toLowerCase())) {
@@ -12009,6 +12037,60 @@ Message.prototype.encrypt = function(keys) {
   // remove packets after encryption
   symEncryptedPacket.packets = new packet.List();
   return new Message(packetlist);
+};
+
+/**
+ * Encrypt the message symmetrically using a passphrase.
+ *   https://tools.ietf.org/html/rfc4880#section-3.7.2.2
+ * @param {String} passphrase
+ * @return {Array<module:message~Message>} new message with encrypted content
+ */
+Message.prototype.symEncrypt = function(passphrase) {
+  if (!passphrase) {
+    throw new Error('The passphrase cannot be empty!');
+  }
+
+  var algo = enums.read(enums.symmetric, config.encryption_cipher);
+  var packetlist = new packet.List();
+
+  // create a Symmetric-key Encrypted Session Key (ESK)
+  var symESKPacket = new packet.SymEncryptedSessionKey();
+  symESKPacket.sessionKeyAlgorithm = algo;
+  symESKPacket.decrypt(passphrase); // generate the session key
+  packetlist.push(symESKPacket);
+
+  // create integrity protected packet
+  var symEncryptedPacket = new packet.SymEncryptedIntegrityProtected();
+  symEncryptedPacket.packets = this.packets;
+  symEncryptedPacket.encrypt(algo, symESKPacket.sessionKey);
+  packetlist.push(symEncryptedPacket);
+
+  // remove packets after encryption
+  symEncryptedPacket.packets = new packet.List();
+  return new Message(packetlist);
+};
+
+/**
+ * Decrypt the message symmetrically using a passphrase.
+ *   https://tools.ietf.org/html/rfc4880#section-3.7.2.2
+ * @param {String} passphrase
+ * @return {Array<module:message~Message>} new message with decrypted content
+ */
+Message.prototype.symDecrypt = function(passphrase) {
+  var symEncryptedPacketlist = this.packets.filterByTag(enums.packet.symEncryptedSessionKey, enums.packet.symEncryptedIntegrityProtected);
+
+  // decrypt Symmetric-key Encrypted Session Key (ESK)
+  var symESKPacket = symEncryptedPacketlist[0];
+  symESKPacket.decrypt(passphrase);
+
+  // decrypt integrity protected packet
+  var symEncryptedPacket = symEncryptedPacketlist[1];
+  symEncryptedPacket.decrypt(symESKPacket.sessionKeyAlgorithm, symESKPacket.sessionKey);
+
+  var resultMsg = new Message(symEncryptedPacket.packets);
+  // remove packets after decryption
+  symEncryptedPacket.packets = new packet.List();
+  return resultMsg;
 };
 
 /**
@@ -15099,8 +15181,12 @@ SymEncryptedIntegrityProtected.prototype.encrypt = function (sessionKeyAlgorithm
 
 
   this.encrypted = crypto.cfb.encrypt(prefixrandom,
-    sessionKeyAlgorithm, tohash, key, false).substring(0,
-    prefix.length + tohash.length);
+      sessionKeyAlgorithm, tohash, key, false);
+
+  if (prefix.length + tohash.length != this.encrypted.length)
+  {
+    this.encrypted = this.encrypted.substring(0, prefix.length + tohash.length);
+  }
 };
 
 /**
@@ -15116,19 +15202,22 @@ SymEncryptedIntegrityProtected.prototype.decrypt = function (sessionKeyAlgorithm
   var decrypted = crypto.cfb.decrypt(
     sessionKeyAlgorithm, key, this.encrypted, false);
 
+  var mdc = decrypted.slice(decrypted.length - 20, decrypted.length).join('');
+
+  decrypted.splice(decrypted.length - 20);
 
   // there must be a modification detection code packet as the
   // last packet and everything gets hashed except the hash itself
   this.hash = crypto.hash.sha1(
-    crypto.cfb.mdc(sessionKeyAlgorithm, key, this.encrypted) + decrypted.substring(0, decrypted.length - 20));
+    crypto.cfb.mdc(sessionKeyAlgorithm, key, this.encrypted) + decrypted.join(''));
 
-
-  var mdc = decrypted.substr(decrypted.length - 20, 20);
 
   if (this.hash != mdc) {
     throw new Error('Modification detected.');
-  } else
-    this.packets.read(decrypted.substr(0, decrypted.length - 22));
+  } else {
+    decrypted.splice(decrypted.length - 2);
+    this.packets.read(decrypted.join(''));
+  }
 };
 
 },{"../crypto":33,"../enums.js":44,"../util.js":75}],67:[function(require,module,exports){
@@ -15253,6 +15342,7 @@ SymEncryptedSessionKey.prototype.decrypt = function(passphrase) {
   } else {
     var decrypted = crypto.cfb.decrypt(
       this.sessionKeyEncryptionAlgorithm, key, this.encrypted, true);
+    decrypted = decrypted.join('');
 
     this.sessionKeyAlgorithm = enums.read(enums.symmetric,
       decrypted[0].keyCodeAt());
@@ -15351,7 +15441,7 @@ SymmetricallyEncrypted.prototype.decrypt = function (sessionKeyAlgorithm, key) {
   var decrypted = crypto.cfb.decrypt(
     sessionKeyAlgorithm, key, this.encrypted, true);
 
-  this.packets.read(decrypted);
+  this.packets.read(decrypted.join(''))
 };
 
 SymmetricallyEncrypted.prototype.encrypt = function (algo, key) {
@@ -16136,11 +16226,11 @@ module.exports = {
    * @return {String} String representation of the array
    */
   Uint8Array2str: function (bin) {
-    var result = '';
+    var result = [];
     for (var i = 0; i < bin.length; i++) {
-      result += String.fromCharCode(bin[i]);
+      result[i] = String.fromCharCode(bin[i]);
     }
-    return result;
+    return result.join('');
   },
 
   /**
@@ -16254,8 +16344,13 @@ module.exports = {
       return;
     }
 
-    if (typeof window !== 'undefined' && window.crypto) {
-      return window.crypto.subtle || window.crypto.webkitSubtle;
+    if (typeof window !== 'undefined') {
+      if (window.crypto) {
+        return window.crypto.subtle || window.crypto.webkitSubtle;
+      }
+      if (window.msCrypto) {
+        return window.msCrypto.subtle;
+      }
     }
   }
 };
