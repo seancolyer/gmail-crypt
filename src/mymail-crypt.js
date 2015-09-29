@@ -43,21 +43,30 @@ function rebindSendButtons(){
   }
 }
 
+function removeHtmlTagsFromMessage(message) {
+  var msg = message;
+  msg = msg.replace(/<br>\n*<div>/g, '\n');
+  msg = msg.replace(/(<div>)/g,'\n');
+  msg = msg.replace(/(<\/div>)/g,'');
+  msg = msg.replace(/<br>/g, '');
+  return msg;
+}
+
 function getContents(form, event){
   //g_editable is intended to work with Gmail's new broken out window approach.
   //we search based on event because it works well in case multiple compose windows are open
   var msg;
   var g_editable = $(event.currentTarget).parents('.I5').find('[g_editable]').first();
   if (g_editable && g_editable.length > 0 && g_editable.html()) {
-    msg = g_editable.html().replace(/(<div>)/g,'\n');
-    msg = msg.replace(/(<\/div>)/g,'');
+    msg = g_editable.html();
+    msg = removeHtmlTagsFromMessage(msg);
     return {g_editable: g_editable, msg: msg};
   }
   var textarea = $('textarea[spellcheck="true"]',form);
   var iframe = $('iframe',form).contents().find('body');
   try{
-    msg = iframe.html().replace(/(<div>)/g,'\n');
-    msg = msg.replace(/(<\/div>)/g,'');
+    msg = iframe.html();
+    msg = removeHtmlTagsFromMessage(msg);
   }
   catch(e){
     msg = textarea.val();
