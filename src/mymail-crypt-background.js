@@ -32,7 +32,10 @@ var gCryptAlerts = {
 function getKeys(keyIds, keyringSet) {
   var keys = [];
   keyIds.forEach(function(keyId){
-    keys.push(keyringSet.getForId(keyId.toHex(), true));
+    var key = keyringSet.getForId(keyId.toHex(), true);
+    if (key != null) {
+      keys.push(key);
+    }
   });
   return keys;
 }
