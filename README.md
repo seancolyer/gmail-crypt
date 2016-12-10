@@ -18,5 +18,15 @@ I sometimes post about this project at [prometheusx.net](http://prometheusx.net)
 
 Additional help welcome. If the changes you're interested in making are in the OpenPGP component, please take a look at [OpenPGP.js](https://github.com/openpgpjs/openpgpjs).
 
+## Building
+
+The unpacked extension is built from the `dist` dir.
+
+```
+npm install
+npm test
+webpack --watch
+```
+
 # Licensing
 See LICENSE file for licensing info.

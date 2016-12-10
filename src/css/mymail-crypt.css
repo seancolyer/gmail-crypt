@@ -1,0 +1,132 @@
+@-webkit-keyframes composeInserted {
+    from { clip: rect(1px, auto, auto, auto); }
+      to { clip: rect(0px, auto, auto, auto); }
+    }
+
+.n1tfz, td[class="gH acX"], td[class="fA"]{
+      -webkit-animation-duration: 0.001s;
+      -webkit-animation-name: composeInserted;
+    }
+
+
+.gCrypt-decrypt-button-group {
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 3px;
+}
+
+.gCrypt-decrypt-button-group button {
+  background-color: #f5f5f5;
+  box-shadow: none;
+  border: none;
+  background-image: -webkit-linear-gradient(top,#f5f5f5,#f1f1f1);
+  color: #444;
+  height: 27px;
+  line-height: 24px;
+  outline: none;
+  padding-top: 0px;
+  padding-bottom: 0px;
+}
+
+.gCrypt-decrypt-button-group button:hover {
+  border-color: #B5B5B5;
+  color: #333;
+}
+
+.gCrypt-decrypt-button-group button#decrypt {
+  border-left: 1px solid rgba(0,0,0,0.1);
+}
+
+.gCrypt-decrypt-button-group button img {
+  vertical-align: sub;
+}
+
+.gCrypt-button-group button {
+  border: 1px;
+  border-style: double;
+  border-color: transparent;
+  border-radius: 2px;
+  background-color: transparent;
+  opacity: .6;
+  outline: none;
+}
+
+.gCrypt-button-group button:hover {
+  border-color: #B5B5B5;
+  opacity: .8;
+}
+
+.gCrypt-button-group button:active {
+  background-color: #B5B5B5;
+}
+
+.gCrypt-alert {
+  display: inline-block;
+  font-size: 12px;
+  border-width: 1px;
+  border-radius: 3px;
+  border-style: solid;
+  width: 95%;
+  margin-left: 2.5%;
+  padding: 1px;
+}
+.gCrypt-alert.alert-error {
+  color: #a94442;
+  background-color: #f2dede;
+  border-color: #ebcccc;
+}
+
+.gCrypt-alert.alert-success {
+  border-color: #42BD41;
+  background: #D0F8CE;
+  color: #42BD41;
+}
+
+.gCrypt-alert.decrypt-alert {
+  padding-bottom: 2px;
+  padding-top: 2px;
+}
+
+.gCrypt-alert.encrypt-alert {
+}
+
+
+.gCrypt-alert .alert-content {
+  display: inline-block;
+  float: left;
+  width: 95%;
+  text-align: center;
+  margin-top: 6px;
+}
+
+.gCrypt-close {
+  display: inline-block;
+  float: right;
+  margin: 2px;
+  padding: 3px;
+  border-color: #ebcccc;
+  border-style: solid;
+  border-width: 1px;
+}
+
+.alert-success .gCrypt-close {
+  border-color: #388E3C;
+}
+
+.alert-success .gCrypt-close:hover {
+  cursor: pointer;
+  background-color: #388E3C;
+}
+
+.gCrypt-close:hover {
+  cursor: pointer;
+  background-color: #FA9999;
+}
+
+.gCrypt-password-input {
+  font-size: 12px;
+  margin-top: 3px;
+  margin-bottom: 3px;
+  width: 70%;
+  text-align: center;
+  margin-left: 15%;
+}

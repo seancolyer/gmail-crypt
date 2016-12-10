@@ -1,0 +1,321 @@
+<!--
+/* This is the options page for mymail-crypt for Gmail.
+*
+* Copyright 2011 Sean Colyer, <sean @ colyer . name>
+* This program is licensed under the GNU General Public License Version 2.
+* See included "LICENSE" file for details.
+*/
+-->
+<html>
+  <head>
+    <link href="../css/mymail-crypt-options.css" rel="stylesheet">
+  </head>
+  <body ng-app="mymailCrypt" layout="column" ng-cloak class="ng-cloak" ng-strict-di>
+    <div ng-controller="mainCtrl">
+      <md-toolbar layout="row">
+        <md-title>Mymail-Crypt</md-title>
+        <md-menu-bar>
+          <md-menu>
+            <md-button ng-click="$mdOpenMenu()">
+              Settings
+            </md-button>
+            <md-menu-content width="6">
+              <md-menu-item>
+                <md-button md-menu-align-target>
+                  <a href="#public-key-section" class="chameleon">
+                    Public Keys
+                  </a>
+                </md-button>
+              </md-menu-item>
+              <md-menu-item>
+                <md-button md-menu-align-target>
+                  <a href="#private-key-section" class="chameleon">
+                    Private Keys
+                  </a>
+                </md-button>
+              </md-menu-item>
+            </md-menu-content>
+          </md-menu>
+        </md-menu-bar>
+      </md-toolbar>
+      <md-content layout="column" flex layout-padding>
+        <h1>Options</h1>
+        <section class="md-whiteframe-z2">
+          <h2>Introduction</h2>
+          Welcome to mymail-crypt for Gmail!
+          <ul>
+            <li>Use the "my keys" section to <strong>generate</strong> a new OpenPGP key, <strong>import</strong> an existing key, or <strong>remove</strong> a key from the system. This manages private keys.</li>
+            <li>Use the "friends' keys" section to <strong>import</strong> or <strong>remove</strong> keys from your friends. This manages public keys</li>
+            <li>Use the "help" section for <strong>troubleshooting</strong>, and <strong>background information</strong>.</li>
+          </ul>
+          <p>
+          <strong>Make sure that you keep backup copies of all the keys you generate. If they're lost, they're lost.</strong>
+          </p>
+          <p>
+          <strong>Before using this extension please read the "help" page and be aware of the security concerns. Also please be aware that the license of this software clearly states this comes WITHOUT ANY WARRANTY.</strong>
+          </p>
+        </section>
+
+        <md-divider></md-divider>
+
+        <section class="md-whiteframe-z2" ng-controller="publicKeyCtrl" layout="column" id="public-key-section">
+          <div flex>
+            <h2>Public Keys</h2>
+            <p>
+              <strong>Please make sure that you reload your gmail page to be sure these changes take effect.</strong>
+            </p>
+          </div>
+          <div layout-gt-sm="row">
+            <div md-whiteframe="2" layout="column" flex>
+              <md-toolbar layout="row" class="">
+                <div class="md-toolbar-tools">
+                  <h2>
+                    <span>Current Keys</span>
+                  </h2>
+                </div>
+              </md-toolbar>
+              <div ng-if="loading" flex-gt-sm="100" layout="row" layout-align="center">
+                <p>
+                  <md-progress-circular md-mode="indeterminate"></md-progress-circular>
+                </p>
+              </div>
+              <div flex="grow" ng-if="!loading">
+                <div ng-if="keys.length === 0" class="md-padding">
+                  <h3>There are no public keys. Please import one.</h3>
+                </div>
+                <md-list flex="grow">
+                  <md-list-item ng-repeat="key in keys" class="md-2-line" data-key-id="{{key.getSigningKeyPacket().keyid.toHex()}}">
+                    <div class="md-list-item-text" layout="column">
+                      <h3>{{key.getUserIds().toString()}}</h3>
+                      <p class="md-caption">
+                        {{key.getSigningKeyPacket().fingerprint}}
+                      </p>
+                      <pre class="hidden-armored-key hidden">
+                        {{key.armor()}}
+                      </pre>
+                      <md-button class="md-secondary md-icon-button" ng-click="copyKey($event)"><md-icon class="copy-button" md-svg-icon="copy" title="Copy">Copy to Clipboard</md-icon></md-button>
+                      <md-button class="md-secondary md-icon-button" ng-click="showConfirmDelete($event)"><md-icon class="delete-button" md-svg-icon="delete" title="Delete">Delete</md-icon></md-button>
+                    </div>
+                  </md-list-item>
+                </md-list>
+              </div>
+            </div>
+
+            <div flex-gt-sm="50" flex-offset-gt-sm="5" flex md-whiteframe="2" class="tall-box">
+              <md-toolbar layout="row" class="md-hue-3">
+                <div class="md-toolbar-tools">
+                  <h2>
+                    <span>Import Public Key</span>
+                  </h2>
+                </div>
+              </md-toolbar>
+              <form name="addKeyForm" class="md-padding">
+                <div ng-if="errors.length > 0">
+                  {{errors[0].message}}
+                </div>
+                <md-input-container class="md-block">
+                  <label>Paste a new Public key</label>
+                  <div class="md-resize-wrapper">
+                    <textarea name="publicKeyArmored" class="key-block" rows="5" required ng-model="publicKeyArmored">
+                    </textarea>
+                  </div>
+                </md-input-container>
+                <md-button class="md-raised" ng-disabled="loading || addKeyForm.$invalid" ng-click="addNewKey()">Add key</md-button>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        <md-divider></md-divider>
+
+        <section class="md-whiteframe-z2" ng-controller="privateKeyCtrl" id="private-key-section">
+          <h2>Private Keys</h2>
+          <strong>Please make sure that you reload your gmail page to be sure these changes take effect.</strong>
+          <div flex layout-gt-sm="row">
+            <div md-whiteframe="2" layout="column" flex>
+              <md-toolbar layout="row" class="">
+                <div class="md-toolbar-tools">
+                  <h2>
+                    <span>Current Keys</span>
+                  </h2>
+                </div>
+              </md-toolbar>
+              <div ng-if="loading" layout="row" layout-align="center">
+                <p>
+                  <md-progress-circular md-mode="indeterminate"></md-progress-circular>
+                </p>
+              </div>
+              <div ng-if="!loading">
+                <div ng-if="keys.length === 0" class="md-padding">
+                  <h3>There are no private keys. Please import or generate one.</h3>
+                </div>
+                <md-list flex>
+                  <md-list-item ng-repeat="key in keys" class="md-2-line" data-key-id="{{key.getSigningKeyPacket().keyid.toHex()}}">
+                    <div class="md-list-item-text" layout="column">
+                      <h3>{{key.getUserIds().toString()}}</h3>
+                      <p class="md-caption">
+                        {{key.getSigningKeyPacket().fingerprint}}
+                      </p>
+                      <pre class="hidden-armored-key hidden">
+                        {{key.armor()}}
+                      </pre>
+                      <md-button class="md-secondary md-icon-button" ng-click="copyKey($event)"><md-icon class="copy-button" md-svg-icon="copy" title="Copy">Copy to Clipboard</md-icon></md-button>
+                      <md-button class="md-secondary md-icon-button" ng-click="showConfirmDelete($event)"><md-icon class="delete-button" md-svg-icon="delete" title="Delete">Delete</md-icon></md-button>
+                    </div>
+                  </md-list-item>
+                </md-list>
+              </div>
+            </div>
+
+            <div flex-gt-sm="50" flex-offset-gt-sm="5" flex md-whiteframe="2" class="tall-box">
+              <div layout="column">
+                <md-toolbar layout="row" class="md-hue-3">
+                  <div class="md-toolbar-tools">
+                    <h2>
+                      <span>Import Private Key</span>
+                    </h2>
+                  </div>
+                </md-toolbar>
+                <form name="addPrivateKeyForm" class="md-padding">
+                  <div ng-if="errors.length > 0">
+                    {{errors[0].message}}
+                  </div>
+                  <md-input-container class="md-block">
+                    <label>Paste a new Private key</label>
+                    <div class="md-resize-wrapper">
+                      <textarea name="privateKeyArmored" class="key-block" rows="5" required ng-model="privateKeyArmored">
+                      </textarea>
+                    </div>
+                  </md-input-container>
+                  <md-button class="md-raised" ng-disabled="loading || addPrivateKeyForm.$invalid" ng-click="addNewKey()">Add key</md-button>
+                </form>
+              </div>
+              <div layout="column">
+                <md-toolbar layout="row" class="md-hue-3">
+                  <div class="md-toolbar-tools">
+                    <h2>
+                      <span>Generate Private Key</span>
+                    </h2>
+                  </div>
+                </md-toolbar>
+                <form name="generateKeyForm" class="md-padding">
+                  <div ng-if="errors.length > 0">
+                    {{errors[0].message}}
+                  </div>
+                  <md-input-container class="md-block">
+                    <label>Name</label>
+                    <input name="name" required ng-model="name">
+                  </md-input-container>
+                  <md-input-container class="md-block">
+                    <label>Email</label>
+                    <input name="email" required type="email" ng-model="email">
+                  </md-input-container>
+                  <md-input-container class="md-block">
+                    <label>Passphrase</label>
+                    <input name="password" type="password" ng-minlength="8" ng-model="password">
+                  </md-input-container>
+                  <md-input-container class="md-block">
+                    <label>Passphrase Confirmation</label>
+                    <input name="passwordConfirmation" type="password" ng-minlength="8" ng-model="passwordConfirmation" match="password" data-match="password">
+                  </md-input-container>
+                  <md-input-container class="md-block">
+                    <label>Bits</label>
+                    <md-select ng-model="bits" required>
+                      <md-option value="2048">2048</md-option>
+                      <md-option value="4096" selected>4096</md-option>
+                    </md-select>
+                  </md-input-container>
+                  <md-button class="md-raised" ng-disabled="loading || generateKeyForm.$invalid" ng-click="generateKey()">Generate New Keypair</md-button>
+                  <p>
+                  <strong>Please note: key generation may take a few seconds after you submit.</strong>
+                  </p>
+                </form>
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+        <md-divider></md-divider>
+
+        <section class="md-whiteframe-z2" ng-controller="optionsCtrl">
+          <h2>Options</h2>
+
+          <div>
+            <md-checkbox ng-model="stopAutomaticDrafts" ng-change="saveConfig()">
+              Stop automatic draft uploading
+            </md-checkbox>
+          </div>
+        </section>
+
+        <md-divider></md-divider>
+
+        <section class="md-whiteframe-z2">
+          <h2>Documentation</h2>
+
+          <p>
+          For the most up-to-date information, please check our <a href="https://github.com/seancolyer/gmail-crypt">project home page</a>.<br/>
+          </p>
+          <h3>How do I use this extension?</h3>
+          <p>
+          <ol>
+            <li>Generate a key under "my keys" or insert an existing armored secret key (generated by GPG or other OpenPGP software)</li>
+            <li>In "friends' keys" use the "insert public key" text area to paste public keys from your friends</li>
+            <li>In gmail, when sending an email look for the "encrypt me" option on the upper right-hand side of the draft</li>
+            <li>In gmail, when receiving an encrypted email look for the "decrypt me" option on the upper right-hand side of the draft</li>
+          </ol>
+          </p>
+          <h3>Is it safe?</h3>
+          <p>
+          This project aims to bring OpenPGP security to Gmail. However, there are some special considerations.
+          <ul>
+            <li>DO NOT use this on a shared computer. This extension is not (yet) multi-user capable.</li>
+            <li>This release still allows drafts to be uploaded to Gmail servers. Unencrypted drafts could be stored on Gmail servers.</li>
+            <li>Storing private keys in browser. The extension will run under it's own domain but it might be possible for malicious entities to access it.</li>
+            <li>Password input into the DOM. Currently input for passwords is done directly into the DOM. This means it would be conceivable for gmail to acquire this password. It is important to note that private keys are stored in the context of the extension and not gmail's context.</li>
+            <li>Cryptographically Secure Pseudo Random Number Generator. OpenPGP.js uses window.crypto.* for random number generation, the quality of this is browser dependent. By definition this should be a good source, but is an externality to consider.</li>
+          </ul>
+          </p>
+          <h3>Troubleshooting</h3>
+          <p>
+          <ul>
+            <li>This extension supports a limited subset of the possible OpenPGP implementations. RSA/AES/SHA1/CAST128 are supported.</li>
+            <li>This extension is aimed at the newest displays of gmail and is generally untested with Labs addons, try the simplest most up to date view you can get</li>
+            <li>If a message is unable to be decoded, it could be from weird formatting from gmail, if you have the ability, please send the html code of the text you are attempting to decrypt (F12->Elements->Magnifying Glass)</li>
+          </ul>
+          </p>
+          <p>
+          <h3>OpenPGP.js</h3>
+          The OpenPGP implementation is <a href="https://github.com/openpgpjs/openpgpjs">OpenPGP.js</a>, it is an open source project based off of the initial work for <a href="http://gpg4browsers.recurity.com/">GPG4Browsers</a>. The project aims to be fully OpenPGP compliant.
+          </p>
+          <h3>Community/Licensing</h3>
+          <p>
+          Yes, your contributions would be welcome! Please see the attached LICENSE file for full License information. Please visit our <a href="https://github.com/seancolyer/gmail-crypt">project home page</a> if you're interested.
+          </p>
+          <h3>Related Works</h3>
+          <p>
+          <ul>
+            <li><a href = "http://gpgtools.github.com/Mobile">GPGTools</a> is working on using a JavaScript implementation of OpenPGP for a mobile app.</li>
+            <li><a href="http://blog.thinkst.com/2011/09/chrome-extension-for-gpg-in-gmail.html">Thinkst has released an extension</a> that performs a very similar feature. However, rather than using a Javascript implementation, it uses a user-installed GPG binary on the local filesystem.</li>
+            <li><a href="http://getfiregpg.org/s/home">FireGPG</a> used to be very similar. It runs only in FireFox. It has stopped supporting Gmail</li>
+            <li><a href="http://gpg4browsers.recurity.com/">GPG4Browsers</a> I discovered this project after releasing my initial version. We have taken slightly different approaches to the same problem and will likely work together in the very near future...</li>
+            <li><a href="https://github.com/toberndo/mailvelope">Mailvelope</a> this is a very similar project that uses OpenPGP.js to generically solve gpg-email.</li>
+            </li>
+          </ul>
+          </p>
+        </section>
+      </md-content>
+    </div>
+
+    <footer layout="row" flex="noshrink" layout-align="center">
+      <div class="main-footer">
+        mymail-crypt for Gmail<br/>
+        <a href="https://github.com/seancolyer/gmail-crypt" class="linkLocal">project page</a> |
+        <a href="LICENSE">license</a>
+      </div>
+    </footer>
+  </body>
+
+  <script src='../js/options.bundle.js'></script>
+
+</html>

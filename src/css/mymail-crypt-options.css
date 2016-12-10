@@ -1,0 +1,43 @@
+@font-face {
+  font-family: "Now";
+  src: url("../fonts/now/Now-Medium.otf");
+  font-weight: bold;
+}
+
+@font-face {
+  font-family: "Now";
+  src: url("../fonts/now/Now-Regular.otf");
+}
+
+body {
+  font-family: "Now", sans-serif;
+}
+
+footer {
+}
+
+a.chameleon, a.chameleon:visited, a.chameleon:hover, a.chameleon:active {
+  color: inherit;
+  text-decoration: inherit;
+}
+
+.key-block {
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 12px !important;
+}
+
+.hidden {
+  left: -999px;
+  max-height: 0px;
+  position: absolute;
+}
+
+.main-footer {
+  padding-bottom: 40px;
+  padding-top: 20px;
+}
+
+.tall-box {
+  max-height: 2000px !important;
+}

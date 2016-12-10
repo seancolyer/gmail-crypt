@@ -1,170 +1,147 @@
-var keyring;
-var config;
-var privateKeyFormToggle = true;
-var publicKeyFormToggle = true;
-var generateKeyFormToggle = true;
+'use strict';
 
-function generateKeyPair(){
-  $('.alert').hide();
-  var form = $('#generateKeyPairForm');
-  var generateOptions = {
-          numBits: parseInt(form.find('#numBits').val(), 10),
-          userId: form.find('#name').val() + ' <' + form.find('#email').val() + '>',
-          passphrase: form.find('#password').val()
+const angular = require('angular');
+require('angular-aria');
+require('angular-animate');
+require('angular-material');
+require('angular_material_css');
+require('angular-validation-match');
+
+const openpgp = require('openpgp');
+// const gCryptUtil = require('./mymail-crypt-util.js');
+
+const MODULE_NAME = 'mymailCrypt';
+
+angular.module(MODULE_NAME, ['ngMaterial', 'ngAria', 'validation.match'])
+  .controller('mainCtrl', ['$scope', '$rootScope', mainCtrl])
+  .controller('privateKeyCtrl', ['$scope', '$rootScope', '$mdDialog', privateKeyCtrl])
+  .controller('publicKeyCtrl', ['$scope', '$rootScope', '$mdDialog', publicKeyCtrl])
+  .controller('optionsCtrl', ['$scope', '$rootScope', optionsCtrl])
+  .config(['$mdIconProvider', function ($mdIconProvider) {
+    $mdIconProvider
+      .icon('copy', '../images/ic_content_copy_black_24px.svg')
+      .icon('delete', '../images/ic_delete_black_24px.svg')
+    ;
+  }]);
+
+function publicKeyCtrl($scope, $rootScope, $mdDialog) {
+  $scope.keys = $rootScope.keyring.publicKeys.keys;
+  this.errors = [];
+
+  $scope.addNewKey = function () {
+    const result = $rootScope.keyring.publicKeys.importKey(this.publicKeyArmored);
+    if (result && result[0] && result[0].message) {
+      this.errors = [result[0]];
+    }
+    $rootScope.keyring.store();
   };
-  var keyPair = openpgp.generateKeyPair(generateOptions);
-  keyPair.then(function(result) {
-    keyring.privateKeys.importKey(result.privateKeyArmored);
-    keyring.publicKeys.importKey(result.publicKeyArmored);
-    keyring.store();
-    parsePrivateKeys();
-    parsePublicKeys();
-  });
+
+  $scope.copyKey = function (event) {
+    const range = document.createRange();
+
+    range.selectNode(event.currentTarget.parentNode.parentNode.querySelector('.hidden-armored-key'));
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    document.execCommand('copy');
+  };
+
+  $scope.showConfirmDelete = function (event) {
+    const keyId = event.currentTarget.parentNode.parentNode.getAttribute('data-key-id');
+    const confirm = $mdDialog.confirm()
+          .title(`Would you like to remove the key ${keyId}?`)
+          .content('You will NOT be able to recover it.')
+          .parent(angular.element(document.body))
+          .ok('Yes')
+          .cancel('No');
+    $mdDialog.show(confirm).then(function () {
+      removeKey(keyId);
+    });
+  };
+
+  // not using $scope assignment here because this should be called only from mdDialog promise confirmation
+  const removeKey = function (keyId) {
+    $rootScope.keyring.publicKeys.removeForId(keyId);
+    $rootScope.keyring.store();
+  };
 }
 
-function insertPrivateKey(){
-  $('.alert').hide();
-  var privKey = $('#newPrivateKey').val();
-  return handleKeyringImportResponse(keyring.privateKeys.importKey(privKey), '#insertPrivateKeyForm');
+function privateKeyCtrl($scope, $rootScope, $mdDialog) {
+  $scope.keys = $rootScope.keyring.privateKeys.keys;
+  $scope.generateKey = function () {
+    const generateOptions = {
+      numBits: parseInt(this.bits, 10),
+      userIds: [{
+        name: this.name,
+        email: this.email
+      }],
+      passphrase: this.password
+    };
+    $rootScope.loading = true;
+    const keyPair = openpgp.generateKey(generateOptions);
+    keyPair.then(function (result) {
+      $rootScope.keyring.privateKeys.importKey(result.privateKeyArmored);
+      $rootScope.keyring.publicKeys.importKey(result.publicKeyArmored);
+      $rootScope.keyring.store();
+      $rootScope.loading = false;
+      $scope.name = '';
+      $scope.email = '';
+      $scope.password = '';
+      $scope.passwordConfirmation = '';
+      $scope.generateKeyForm.$setUntouched();
+      $scope.generateKeyForm.$setPristine();
+      $rootScope.$apply();
+    });
+  };
+
+  $scope.addNewKey = function () {
+    const result = $rootScope.keyring.privateKeys.importKey(this.privateKeyArmored);
+    if (result[0] && result[0].message) {
+      this.errors = [result[0]];
+    }
+    $rootScope.keyring.store();
+  };
+
+  $scope.showConfirmDelete = function (event) {
+    const keyId = event.currentTarget.parentNode.parentNode.getAttribute('data-key-id');
+    const confirm = $mdDialog.confirm()
+          .title(`Would you like to remove the key ${keyId}?`)
+          .content('You will NOT be able to recover it.')
+          .parent(angular.element(document.body))
+          .ok('Yes')
+          .cancel('No');
+    $mdDialog.show(confirm).then(function () {
+      removeKey(keyId);
+    });
+  };
+
+  // not using $scope assignment here because this should be called only from mdDialog promise confirmation
+  const removeKey = function (keyId) {
+    $rootScope.keyring.privateKeys.removeForId(keyId);
+    $rootScope.keyring.store();
+  };
 }
 
-function insertPublicKey(){
-  $('.alert').hide();
-  var pubKey = $('#newPublicKey').val();
-  return handleKeyringImportResponse(keyring.publicKeys.importKey(pubKey), '#insertPublicKeyForm');
+function optionsCtrl($scope, $rootScope) {
+  const STOP_DRAFT_CONFIG_KEY = 'mymail-stopAutomaticDrafts';
+
+  $scope.stopAutomaticDrafts = $rootScope.config.config[STOP_DRAFT_CONFIG_KEY];
+
+  $scope.saveConfig = function () {
+    $rootScope.config.config[STOP_DRAFT_CONFIG_KEY] = this.stopAutomaticDrafts;
+    $rootScope.config.write();
+  };
 }
 
-function handleKeyringImportResponse(importResult, selector) {
-  if (importResult === null) {
-    keyring.store();
-    parsePublicKeys();
-    parsePrivateKeys();
-    return true;
-  }
-  else {
-    $(selector).prepend('<div id="openpgpjs-error" class="alert alert-error"></div><div class="alert alert-error">Mymail-Crypt for Gmail was unable to read this key. It would be great if you could contact us so we can help figure out what went wrong.</div>');
-    $(selector + ' #openpgpjs-error').text(importResult);
-    return false;
-  }
-}
-
-function parsePublicKeys(){
-  var keys = keyring.publicKeys.keys;
-  var domPrefix = "public";
-
-  parseKeys(keys, domPrefix);
-}
-
-function parsePrivateKeys() {
-  var keys = keyring.privateKeys.keys;
-  var domPrefix = "private";
-
-  parseKeys(keys, domPrefix);
-}
-
-function parseKeys(keys, domPrefix){
-  $('#' + domPrefix + 'KeyTable>tbody>tr').remove();
-  for(var k = 0; k < keys.length; k++) {
-    var key = keys[k];
-    var user = gCryptUtil.parseUser(key.users[0].userId.userid);
-    $('#' + domPrefix + 'KeyTable>tbody').append('<tr id="keyRow'+ k + '"><td><a href="#" class="removeLink" id="' + k + '">remove</a></td>' +
-                                       '<td class="userName"></td>' +
-                                       '<td class="userEmail"></td>' +
-                                       '<td><a href="#' + domPrefix + k +'" data-toggle="modal">show key</a><div class="modal" id="' + domPrefix + k + '"><div class="modal-body"><a class="close" data-dismiss="modal">Close</a><br/ ><pre class="keyText"></pre></div></div></td></tr>');
-    // We need to set the userName and userEmail here via `text` calls because they are unsafe and need sanitized
-    $('#' + domPrefix + 'KeyTable #keyRow'+ k + ' .userName').text(user.userName);
-    $('#' + domPrefix + 'KeyTable #keyRow'+ k + ' .userEmail').text(user.userEmail);
-    $('#' + domPrefix + 'KeyTable #keyRow'+ k + ' .keyText').text(key.armor());
-    $('#' + domPrefix + k).hide();
-    $('#' + domPrefix + k).modal({backdrop: true, show: false});
-  }
-  $('#' + domPrefix + 'KeyTable .removeLink').click(function(e){
-    keys.splice(e.currentTarget.id, 1);
-    keyring.store();
-    parseKeys(keys, domPrefix);
-  });
-}
-
-function saveOptions(){
-  saveOptionForCheckbox('stopAutomaticDrafts', 'stopAutomaticDrafts', true);
-  saveOptionForCheckbox('includeMyself', 'includeMyself', true);
-  saveOptionForCheckbox('showComment', 'show_comment', false);
-  saveOptionForCheckbox('showVersion', 'show_version', false);
-}
-
-function saveOptionForCheckbox(elementId, configKey, thirdParty) {
-  if($('#' + elementId + ':checked').length == 1){
-    gCryptUtil.setOption(config, configKey, true, thirdParty);
-  } else {
-    gCryptUtil.setOption(config, configKey, false, thirdParty);
-  }
-
-}
-
-function loadOptions(){
-  if (gCryptUtil.getOption(config, 'stopAutomaticDrafts', true)) {
-    $('#stopAutomaticDrafts').attr('checked', true);
-  }
-  if (gCryptUtil.getOption(config, 'includeMyself', true)) {
-    $('#includeMyself').attr('checked', true);
-  }
-  if (gCryptUtil.getOption(config, 'show_comment', false)) {
-    $('#showComment').attr('checked', true);
-  }
-  if (gCryptUtil.getOption(config, 'show_version', false)) {
-    $('#showVersion').attr('checked', true);
-  }
-}
-
-function linkLocalFunction(event){
-  $('.alert').hide();
-  $('span').hide();
-  if(event && event.currentTarget){
-    $(event.currentTarget.hash).show();
-  }
-}
-
-function onLoad(){
-  keyring = new openpgp.Keyring();
-  //TODO openpgp.js needs to improve config support, this is a hack.
-  config = new openpgp.config.localStorage();
+function mainCtrl($scope, $rootScope) {
+  $rootScope.keyring = new openpgp.Keyring();
+  $rootScope.config = new openpgp.config.localStorage();
   try {
-    config.read();
+    $rootScope.config.read();
   }
   catch (e) {
-    //no-op, makes more sense to handle this in finally since read can give null config
+    console.error(e);
   }
-  finally {
-    if(_.isEmpty(config.config)) {
-      config.config = openpgp.config;
-      config.write();
-    }
-  }
-  gCryptUtil.migrateOldKeys(keyring);
-  parsePrivateKeys();
-  parsePublicKeys();
-  loadOptions();
-  $('.linkLocal').click(linkLocalFunction).click();
-  $('#homeSpan').show();
-  $('#generateKeyPairForm').hide();
-  $('#generateKeyPairTitle').click(function() {
-    $('#generateKeyPairForm').toggle(generateKeyFormToggle);
-    generateKeyFormToggle = !generateKeyFormToggle;
+  $rootScope.$on('refresh', function () {
+    $scope.unread = mailManagement.getUnread();
   });
-  $('#insertPrivateKeyForm').hide();
-  $('#insertPrivateKeyTitle').click(function() {
-    $('#insertPrivateKeyForm').toggle(privateKeyFormToggle);
-    privateKeyFormToggle = !privateKeyFormToggle;
-  });
-  $('#insertPublicKeyForm').hide();
-  $('#insertPublicKeyTitle').click(function() {
-    $('#insertPublicKeyForm').toggle(publicKeyFormToggle);
-    publicKeyFormToggle = !publicKeyFormToggle;
-  });
-  $('#optionsFormSubmit').click(saveOptions);
-  $('#insertPrivateKeyFormSubmit').click(insertPrivateKey);
-  $('#generateKeyPairFormSubmit').click(generateKeyPair);
-  $('#insertPublicKeyFormSubmit').click(insertPublicKey);
 }
-
-$(document).ready(onLoad());
