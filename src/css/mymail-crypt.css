@@ -130,3 +130,8 @@
   text-align: center;
   margin-left: 15%;
 }
+
+.position-abs-right {
+  position: absolute;
+  right:100px;
+}
