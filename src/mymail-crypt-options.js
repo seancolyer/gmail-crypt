@@ -95,8 +95,8 @@ function privateKeyCtrl($scope, $rootScope, $mdDialog) {
 
   $scope.addNewKey = function () {
     const result = $rootScope.keyring.privateKeys.importKey(this.privateKeyArmored);
-    if (result[0] && result[0].message) {
-      this.errors = [result[0]];
+    if (result && result.message) {
+      this.errors = [result];
     }
     $rootScope.keyring.store();
   };

@@ -228,7 +228,7 @@ function composeIntercept() {
             </span>`;
 
         const encryptionForm =
-            `<form class="form-inline">
+            `<form class="form-inline position-abs-right">
               <input type="password" class="gCrypt-password-input" placeholder="password" id="gCryptPasswordEncrypt">
             </form>`;
 
